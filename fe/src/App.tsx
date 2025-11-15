@@ -1,31 +1,125 @@
 import type { Component } from 'solid-js'
-import { createSignal, Show } from 'solid-js'
+import { createEffect, createSignal, Show } from 'solid-js'
 import { AccelerationProfileChart } from './components/AccelerationProfileChart'
 import { FileInfoPanel } from './components/FileInfo'
 import { ControlPanel } from './components/ControlPanel'
 import { parseDropTestFile } from './lib/csv-parser'
-import type { DropTestData } from './types'
+import {
+  applyBandstopAccel,
+  applyButterworthLowpassAccel,
+  applyCrashFilterCFCAccel,
+  applySavitzkyGolayAccel,
+  computeMovingAverageAccel,
+} from './lib/accel-filter'
+import type { DropTestData, FilterConfig, SamplePoint } from './types'
 
 export type RangeCommand = { type: 'full' } | { type: 'firstHit' } | null
 
+const DEFAULT_FILTER_CONFIG: FilterConfig = {
+  sg: {
+    enabled: true,
+    windowSize: 17,
+    polynomial: 3,
+  },
+  sgFull: {
+    enabled: false,
+    windowSize: 33,
+    polynomial: 3,
+  },
+  movingAverage: {
+    enabled: false,
+    windowSize: 9,
+  },
+  butterworth1: {
+    enabled: false,
+    cutoffHz: 100,
+    order: 4,
+    zeroPhase: true,
+  },
+  butterworth2: {
+    enabled: false,
+    cutoffHz: 300,
+    order: 4,
+    zeroPhase: true,
+  },
+  notch: {
+    enabled: false,
+    centerHz: 30,
+    bandwidthHz: 10,
+    order: 2,
+    zeroPhase: true,
+  },
+  cfc60: {
+    enabled: false,
+    cfc: 60,
+    order: 4,
+    zeroPhase: true,
+  },
+  cfc180: {
+    enabled: false,
+    cfc: 180,
+    order: 4,
+    zeroPhase: true,
+  },
+}
+
+function sanitizeOddWindow(value: number, maxLength: number): number | null {
+  let maxWin = maxLength
+  if (maxWin % 2 === 0) maxWin -= 1
+  if (maxWin < 3) return null
+
+  let w = Math.round(value)
+  if (!Number.isFinite(w)) return null
+  if (w < 3) w = 3
+  if (w > maxWin) w = maxWin
+
+  if (w % 2 === 0) {
+    if (w + 1 <= maxWin) {
+      w += 1
+    } else if (w - 1 >= 3) {
+      w -= 1
+    } else {
+      return null
+    }
+  }
+
+  return w
+}
+
+function sanitizePolynomial(value: number): number {
+  let p = Math.round(value)
+  if (!Number.isFinite(p) || p < 1) p = 1
+  if (p > 7) p = 7
+  return p
+}
+
 export const AppUI: Component = () => {
   const [testData, setTestData] = createSignal<DropTestData | null>(null)
+  const [displaySamples, setDisplaySamples] = createSignal<Array<SamplePoint>>([])
   const [error, setError] = createSignal<string>('')
   const [isDragging, setIsDragging] = createSignal(false)
+
+  const [filterConfig, setFilterConfig] = createSignal<FilterConfig>(DEFAULT_FILTER_CONFIG)
 
   // Default visible series
   const [visibleSeries, setVisibleSeries] = createSignal<Record<string, boolean>>({
     accelG: true,
-    accelFiltered: true, // SG auto (moderate)
-    accelFactoryFiltered: false,
-    accelSGShort: false,
-    accelSGFull: false,
+    accelFactoryFiltered: true,
+
+    accelFiltered: true, // SG main
+    accelSGFull: false, // SG strong
     accelMA9: false,
+
+    accelLPEnvLight: false, // Butterworth LP #1
+    accelLPEnvMedium: false, // Butterworth LP #2
+    accelLPEnvStrong: false, // Notch / band-stop
+
     accelCFC60: false,
     accelCFC180: false,
-    accelLPEnvLight: false,
-    accelLPEnvMedium: true, // show one envelope-like series by default
-    accelLPEnvStrong: false,
+
+    accelFromSpeed: false,
+    accelFromPos: false,
+
     speed: true,
     pos: true,
     jerk: true,
@@ -54,9 +148,12 @@ export const AppUI: Component = () => {
       const text = await file.text()
       const parsed = parseDropTestFile(text, file.name)
       setTestData(parsed)
+      setError('') // Clear any previous errors
     } catch (err) {
       setError(`Error parsing file: ${err}`)
       console.error(err)
+      setTestData(null)
+      setDisplaySamples([])
     }
   }
 
@@ -79,6 +176,155 @@ export const AppUI: Component = () => {
   const handleFirstHit = () => {
     setRangeCommand({ type: 'firstHit' })
   }
+
+  // Recompute filtered series whenever data or filter configuration changes
+  createEffect(() => {
+    const data = testData()
+    const cfg = filterConfig()
+
+    if (!data || data.samples.length === 0) {
+      setDisplaySamples([])
+      return
+    }
+
+    const samples: SamplePoint[] = data.samples.map((s) => ({ ...s }))
+
+    // Reset filtered series to null before applying
+    for (const s of samples) {
+      s.accelFiltered = null
+      s.accelSGFull = null
+      s.accelMA9 = null
+      s.accelCFC60 = null
+      s.accelCFC180 = null
+      s.accelLPEnvLight = null
+      s.accelLPEnvMedium = null
+      s.accelLPEnvStrong = null
+    }
+
+    // Savitzky–Golay main
+    if (cfg.sg.enabled) {
+      const win = sanitizeOddWindow(cfg.sg.windowSize, samples.length)
+      const poly = sanitizePolynomial(cfg.sg.polynomial)
+      if (win != null) {
+        try {
+          const y = applySavitzkyGolayAccel(samples, win, poly)
+          for (let i = 0; i < samples.length; i++) {
+            samples[i].accelFiltered = y[i]
+          }
+        } catch (err) {
+          console.warn('Savitzky–Golay main filter error:', err)
+        }
+      }
+    }
+
+    // Savitzky–Golay strong
+    if (cfg.sgFull.enabled) {
+      const win = sanitizeOddWindow(cfg.sgFull.windowSize, samples.length)
+      const poly = sanitizePolynomial(cfg.sgFull.polynomial)
+      if (win != null) {
+        try {
+          const y = applySavitzkyGolayAccel(samples, win, poly)
+          for (let i = 0; i < samples.length; i++) {
+            samples[i].accelSGFull = y[i]
+          }
+        } catch (err) {
+          console.warn('Savitzky–Golay strong filter error:', err)
+        }
+      }
+    }
+
+    // Moving average
+    if (cfg.movingAverage.enabled) {
+      const win = sanitizeOddWindow(cfg.movingAverage.windowSize, samples.length)
+      if (win != null) {
+        try {
+          const y = computeMovingAverageAccel(samples, win)
+          for (let i = 0; i < samples.length; i++) {
+            samples[i].accelMA9 = y[i]
+          }
+        } catch (err) {
+          console.warn('Moving average filter error:', err)
+        }
+      }
+    }
+
+    // Butterworth low‑pass #1
+    if (cfg.butterworth1.enabled) {
+      try {
+        const y = applyButterworthLowpassAccel(samples, cfg.butterworth1.cutoffHz, {
+          order: cfg.butterworth1.order,
+          zeroPhase: cfg.butterworth1.zeroPhase,
+        })
+        for (let i = 0; i < samples.length; i++) {
+          samples[i].accelLPEnvLight = y[i]
+        }
+      } catch (err) {
+        console.warn('Butterworth LP #1 error:', err)
+      }
+    }
+
+    // Butterworth low‑pass #2
+    if (cfg.butterworth2.enabled) {
+      try {
+        const y = applyButterworthLowpassAccel(samples, cfg.butterworth2.cutoffHz, {
+          order: cfg.butterworth2.order,
+          zeroPhase: cfg.butterworth2.zeroPhase,
+        })
+        for (let i = 0; i < samples.length; i++) {
+          samples[i].accelLPEnvMedium = y[i]
+        }
+      } catch (err) {
+        console.warn('Butterworth LP #2 error:', err)
+      }
+    }
+
+    // Notch / band‑stop
+    if (cfg.notch.enabled) {
+      try {
+        const y = applyBandstopAccel(samples, cfg.notch.centerHz, cfg.notch.bandwidthHz, {
+          order: cfg.notch.order,
+          zeroPhase: cfg.notch.zeroPhase,
+        })
+        for (let i = 0; i < samples.length; i++) {
+          samples[i].accelLPEnvStrong = y[i]
+        }
+      } catch (err) {
+        console.warn('Band‑stop (notch) filter error:', err)
+      }
+    }
+
+    // CFC 60
+    if (cfg.cfc60.enabled) {
+      try {
+        const { filtered } = applyCrashFilterCFCAccel(samples, cfg.cfc60.cfc, {
+          order: cfg.cfc60.order,
+          zeroPhase: cfg.cfc60.zeroPhase,
+        })
+        for (let i = 0; i < samples.length; i++) {
+          samples[i].accelCFC60 = filtered[i]
+        }
+      } catch (err) {
+        console.warn('CFC 60 filter error:', err)
+      }
+    }
+
+    // CFC 180
+    if (cfg.cfc180.enabled) {
+      try {
+        const { filtered } = applyCrashFilterCFCAccel(samples, cfg.cfc180.cfc, {
+          order: cfg.cfc180.order,
+          zeroPhase: cfg.cfc180.zeroPhase,
+        })
+        for (let i = 0; i < samples.length; i++) {
+          samples[i].accelCFC180 = filtered[i]
+        }
+      } catch (err) {
+        console.warn('CFC 180 filter error:', err)
+      }
+    }
+
+    setDisplaySamples(samples)
+  })
 
   return (
     <div
@@ -127,20 +373,22 @@ export const AppUI: Component = () => {
         </Show>
 
         <Show when={hasData()}>
-          <div class="space-y-3">
-            <section class="bg-white rounded-xl shadow-sm border border-gray-200 py-3 px-4">
+          <div class="flex flex-col md:flex-row gap-4 items-start">
+            <section class="flex-1 min-w-0 bg-white rounded-xl shadow-sm border border-gray-200 py-3 px-4">
               <AccelerationProfileChart
-                samples={testData()!.samples}
+                samples={displaySamples()}
                 visibleSeries={visibleSeries()}
                 rangeCommand={rangeCommand()}
               />
             </section>
 
-            <div class="grid gap-3 md:grid-cols-2 items-start">
+            <div class="w-full md:w-96 lg:w-[420px] space-y-3 flex-shrink-0">
               <ControlPanel
-                samples={testData()!.samples}
+                samples={displaySamples()}
                 visibleSeries={visibleSeries()}
                 setVisibleSeries={setVisibleSeries}
+                filterConfig={filterConfig()}
+                setFilterConfig={setFilterConfig}
                 onFullRange={handleFullRange}
                 onFirstHit={handleFirstHit}
               />

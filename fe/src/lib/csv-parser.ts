@@ -1,13 +1,5 @@
 import type { DropTestData, FileMetadata, SamplePoint } from '../types'
-import {
-  applyAdaptiveLowpassAccel,
-  applyCrashFilterCFCAccel,
-  applySavitzkyGolayAccel,
-  applySavitzkyGolayAccelAuto,
-  applySavitzkyGolayAccelFullPeriod,
-  computeMovingAverageAccel,
-} from './accel-filter'
-import { analyzeFirstHit } from './signal-analysis'
+import { computeAccelFromPos, computeAccelFromSpeed } from './accel-filter'
 
 function parseOptionalNumber(value: string | undefined): number | null {
   if (!value) return null
@@ -222,6 +214,9 @@ export function parseDropTestFile(
     accelLPEnvLight: null,
     accelLPEnvMedium: null,
     accelLPEnvStrong: null,
+
+    accelFromSpeed: null,
+    accelFromPos: null,
   }))
 
   // Detect origin point based on acceleration threshold (on raw accelG)
@@ -234,78 +229,14 @@ export function parseDropTestFile(
     timeMs: s.timeMs - originTimeMs,
   }))
 
+  // Compute derived acceleration from speed and position
   if (adjustedSamples.length >= 5) {
-    try {
-      // 1) Savitzky–Golay auto (window based on ringing analysis, moderate smoothing)
-      const {
-        smoothed: sgAuto,
-        analysis,
-        fullPeriodWindowSizeSamples,
-      } = applySavitzkyGolayAccelAuto(adjustedSamples)
+    const accelFromSpeed = computeAccelFromSpeed(adjustedSamples)
+    const accelFromPos = computeAccelFromPos(adjustedSamples)
 
-      // 2) Savitzky–Golay short window (more detail, less smoothing)
-      const sgShort = applySavitzkyGolayAccel(adjustedSamples, 11, 3)
-
-      // 3) Savitzky–Golay full-period window (very strong smoothing, envelope-like)
-      const { smoothed: sgFull } = applySavitzkyGolayAccelFullPeriod(adjustedSamples, analysis)
-
-      // 4) Simple centered moving average with window size 9 samples
-      const ma9 = computeMovingAverageAccel(adjustedSamples, 9)
-
-      // 5) Crash‑test style Butterworth filters (CFC 60 and CFC 180)
-      const { filtered: cfc60 } = applyCrashFilterCFCAccel(adjustedSamples, 60)
-      const { filtered: cfc180 } = applyCrashFilterCFCAccel(adjustedSamples, 180)
-
-      // 6) Adaptive low‑pass filters based on ringing freq (envelope-like)
-      const adaptive = applyAdaptiveLowpassAccel(adjustedSamples, analysis)
-
-      const n = adjustedSamples.length
-      for (let i = 0; i < n; i++) {
-        adjustedSamples[i].accelFiltered = sgAuto[i]
-        adjustedSamples[i].accelSGShort = sgShort[i]
-        adjustedSamples[i].accelMA9 = ma9[i]
-        adjustedSamples[i].accelCFC60 = cfc60[i]
-        adjustedSamples[i].accelCFC180 = cfc180[i]
-
-        if (sgFull) {
-          adjustedSamples[i].accelSGFull = sgFull[i]
-        }
-
-        if (adaptive.envLight) {
-          adjustedSamples[i].accelLPEnvLight = adaptive.envLight[i]
-        }
-        if (adaptive.envMedium) {
-          adjustedSamples[i].accelLPEnvMedium = adaptive.envMedium[i]
-        }
-        if (adaptive.envStrong) {
-          adjustedSamples[i].accelLPEnvStrong = adaptive.envStrong[i]
-        }
-      }
-
-      // Analyze the first-hit window specifically (time-domain + spectrum on that period)
-      analyzeFirstHit(adjustedSamples)
-
-      console.log(
-        'SavitzkyGolayFullPeriodInfo ' +
-          JSON.stringify(
-            {
-              fullPeriodWindowSizeSamples,
-            },
-            null,
-            2,
-          ),
-      )
-    } catch (err) {
-      console.warn(
-        'AccelFilterError ' +
-          JSON.stringify(
-            {
-              message: err instanceof Error ? err.message : String(err),
-            },
-            null,
-            2,
-          ),
-      )
+    for (let i = 0; i < adjustedSamples.length; i++) {
+      adjustedSamples[i].accelFromSpeed = accelFromSpeed[i]
+      adjustedSamples[i].accelFromPos = accelFromPos[i]
     }
   }
 

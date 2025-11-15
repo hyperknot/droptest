@@ -2,13 +2,21 @@
 import Fili from 'fili'
 import savitzkyGolay from 'ml-savitzky-golay'
 import type { SamplePoint } from '../types'
-import type { ImpactAnalysis } from './signal-analysis'
-import { analyzeImpact, estimateSampleRateHz } from './signal-analysis'
 
 /**
  * npm dependencies:
  *   npm install ml-savitzky-golay fft.js fili
  */
+
+/**
+ * Estimate sample rate from timeMs (assumes mostly uniform sampling).
+ */
+function estimateSampleRateHz(samples: Array<SamplePoint>): number | null {
+  if (samples.length < 2) return null
+  const dt = samples[1].timeMs - samples[0].timeMs
+  if (!Number.isFinite(dt) || dt <= 0) return null
+  return 1000 / dt
+}
 
 /**
  * Apply Savitzky–Golay smoothing to accelG.
@@ -49,126 +57,6 @@ export function applySavitzkyGolayAccel(
 
   const smoothed: Array<number> = savitzkyGolay(y, h, options)
   return smoothed
-}
-
-/**
- * Auto mode:
- * - Runs analyzeImpact to estimate ringing frequency and recommend a *moderate*
- *   smoothing window (fraction of ringing period).
- * - Applies Savitzky–Golay with that window (or a fallback default).
- * - Also returns the full-period window length (for other filters to use).
- * - Logs configuration as JSON.
- *
- * Returns:
- *   smoothed: number[]   // smoothed accelG aligned with samples
- *   usedWindowSizeSamples: number
- *   polynomial: number
- *   analysis: ImpactAnalysis | null
- *   fullPeriodWindowSizeSamples: number | null
- */
-export function applySavitzkyGolayAccelAuto(samples: Array<SamplePoint>): {
-  smoothed: Array<number>
-  usedWindowSizeSamples: number
-  polynomial: number
-  analysis: ImpactAnalysis | null
-  fullPeriodWindowSizeSamples: number | null
-} {
-  const analysis = analyzeImpact(samples)
-
-  // Fallback defaults if analysis failed
-  let windowSizeSamples = 31
-  let polynomial = 3
-  let fullPeriodWindowSizeSamples: number | null = null
-
-  if (
-    analysis?.recommendedSavitzkyGolayWindowSizeSamples &&
-    analysis.recommendedSavitzkyGolayWindowSizeSamples > 1
-  ) {
-    windowSizeSamples = analysis.recommendedSavitzkyGolayWindowSizeSamples
-    if (analysis.recommendedSavitzkyGolayPolynomial) {
-      polynomial = analysis.recommendedSavitzkyGolayPolynomial
-    }
-  }
-
-  if (analysis?.ringingPeriodMs && analysis.ringingPeriodMs > 1) {
-    const dtMs = samples.length >= 2 ? samples[1].timeMs - samples[0].timeMs : 1
-    const approxSamples = analysis.ringingPeriodMs / dtMs
-    let win = Math.round(approxSamples)
-    if (win < 5) win = 5
-    if (win % 2 === 0) win += 1
-    if (win > samples.length - 2) {
-      win = samples.length % 2 === 1 ? samples.length : samples.length - 1
-    }
-    fullPeriodWindowSizeSamples = win
-  }
-
-  const smoothed = applySavitzkyGolayAccel(samples, windowSizeSamples, polynomial)
-
-  const logObj = {
-    usedWindowSizeSamples: windowSizeSamples,
-    polynomial,
-    ringingFrequencyEstimateHz: analysis?.ringingFrequencyEstimateHz ?? null,
-    ringingPeriodMs: analysis?.ringingPeriodMs ?? null,
-    fullPeriodWindowSizeSamples,
-  }
-
-  console.log(`SavitzkyGolayConfig ${JSON.stringify(logObj, null, 2)}`)
-
-  return {
-    smoothed,
-    usedWindowSizeSamples: windowSizeSamples,
-    polynomial,
-    analysis,
-    fullPeriodWindowSizeSamples,
-  }
-}
-
-/**
- * Savitzky–Golay smoothing with a window approximately equal to one ringing period.
- *
- * Uses the ImpactAnalysis object (if available) to select the window.
- */
-export function applySavitzkyGolayAccelFullPeriod(
-  samples: Array<SamplePoint>,
-  analysis: ImpactAnalysis | null,
-): { smoothed: Array<number> | null; windowSizeSamples: number | null } {
-  if (!analysis?.ringingPeriodMs || analysis.ringingPeriodMs <= 1) {
-    console.log(
-      'SavitzkyGolayFullPeriodConfig ' +
-        JSON.stringify({ message: 'No ringing period available' }, null, 2),
-    )
-    return { smoothed: null, windowSizeSamples: null }
-  }
-
-  const dtMs = samples.length >= 2 ? samples[1].timeMs - samples[0].timeMs : 1
-  const approxSamples = analysis.ringingPeriodMs / dtMs
-
-  let windowSize = Math.round(approxSamples)
-  if (windowSize < 5) windowSize = 5
-  if (windowSize % 2 === 0) windowSize += 1
-  if (windowSize > samples.length - 2) {
-    windowSize = samples.length % 2 === 1 ? samples.length : samples.length - 1
-  }
-
-  const poly = analysis.recommendedSavitzkyGolayPolynomial ?? 3
-  const smoothed = applySavitzkyGolayAccel(samples, windowSize, poly)
-
-  console.log(
-    'SavitzkyGolayFullPeriodConfig ' +
-      JSON.stringify(
-        {
-          windowSizeSamples: windowSize,
-          polynomial: poly,
-        },
-        null,
-        2,
-      ),
-  )
-
-  return {
-    smoothed,
-    windowSizeSamples: windowSize,
-  }
 }
 
 /**
@@ -251,20 +139,74 @@ export function applyButterworthLowpassAccel(
     filtered = reverseFilter.multiStep(filtered.slice().reverse()).reverse()
   }
 
-  console.log(
-    'ButterworthLowpassConfig ' +
-      JSON.stringify(
-        {
-          sampleRateHz,
-          cutoffHz: fc,
-          requestedCutoffHz: cutoffHz,
-          order,
-          zeroPhase,
-        },
-        null,
-        2,
-      ),
-  )
+  return filtered
+}
+
+/**
+ * Band‑stop (notch) Butterworth filter on accelG.
+ * Removes frequencies around centerHz ± bandwidthHz/2.
+ *
+ * - centerHz: center frequency to remove (e.g. 30 Hz for ringing)
+ * - bandwidthHz: bandwidth of notch (e.g. 10 Hz)
+ * - order: filter order, default 2
+ * - zeroPhase: if true, applies filter forward and backward
+ */
+export function applyBandstopAccel(
+  samples: Array<SamplePoint>,
+  centerHz: number,
+  bandwidthHz: number,
+  options: { order?: number; zeroPhase?: boolean } = {},
+): Array<number> {
+  if (samples.length < 4) {
+    throw new Error(`Not enough samples (${samples.length}) for band-stop filtering`)
+  }
+
+  const order = options.order ?? 2
+  const zeroPhase = options.zeroPhase ?? true
+
+  const estimatedRate = estimateSampleRateHz(samples)
+  const sampleRateHz = estimatedRate && estimatedRate > 0 ? estimatedRate : 1000
+
+  const nyquist = sampleRateHz / 2
+
+  // Compute lower and upper cutoff frequencies
+  const halfBand = bandwidthHz / 2
+  let Fc1 = centerHz - halfBand
+  let Fc2 = centerHz + halfBand
+
+  // Clamp to valid range
+  Fc1 = Math.max(0.001, Math.min(Fc1, nyquist * 0.99))
+  Fc2 = Math.max(0.001, Math.min(Fc2, nyquist * 0.99))
+
+  // Ensure Fc1 < Fc2
+  if (Fc1 >= Fc2) {
+    Fc2 = Fc1 + 1
+    if (Fc2 > nyquist * 0.99) {
+      Fc1 = nyquist * 0.99 - 1
+      Fc2 = nyquist * 0.99
+    }
+  }
+
+  const values = samples.map((s) => s.accelG ?? 0)
+
+  const iirCalculator = new Fili.CalcCascades()
+
+  const coeffs = iirCalculator.bandstop({
+    order,
+    characteristic: 'butterworth',
+    Fs: sampleRateHz,
+    Fc: Fc1,
+    Fc2: Fc2,
+    preGain: true,
+  })
+
+  const forwardFilter = new Fili.IirFilter(coeffs)
+  let filtered = forwardFilter.multiStep(values)
+
+  if (zeroPhase) {
+    const reverseFilter = new Fili.IirFilter(coeffs)
+    filtered = reverseFilter.multiStep(filtered.slice().reverse()).reverse()
+  }
 
   return filtered
 }
@@ -294,21 +236,6 @@ export function applyCrashFilterCFCAccel(
 
   const filtered = applyButterworthLowpassAccel(samples, approxCutoffHz, options)
 
-  console.log(
-    'CrashFilterCFC ' +
-      JSON.stringify(
-        {
-          cfc,
-          sampleRateHz,
-          approxCutoffHz,
-          order: options.order ?? 4,
-          zeroPhase: options.zeroPhase ?? true,
-        },
-        null,
-        2,
-      ),
-  )
-
   return {
     filtered,
     usedCutoffHz: approxCutoffHz,
@@ -317,89 +244,77 @@ export function applyCrashFilterCFCAccel(
 }
 
 /**
- * Adaptive low‑pass filters aimed at suppressing the ringing and revealing a
- * smoother "envelope" of the foam compression–rebound.
- *
- * We derive a base frequency from the estimated ringing frequency if available.
- * Otherwise, we fall back to a value relative to the sample rate (not hard‑coded).
- *
- * We then create several series with different fractions of this base frequency:
- *   - Light  (factor ~ 0.7)
- *   - Medium (factor ~ 0.5)
- *   - Strong (factor ~ 0.35)
+ * Compute acceleration from speed using numerical differentiation (central difference).
  */
-export interface AdaptiveLowpassSeries {
-  envLight: Array<number> | null
-  envMedium: Array<number> | null
-  envStrong: Array<number> | null
-}
+export function computeAccelFromSpeed(samples: Array<SamplePoint>): Array<number | null> {
+  const n = samples.length
+  const result = new Array<number | null>(n).fill(null)
 
-export function applyAdaptiveLowpassAccel(
-  samples: Array<SamplePoint>,
-  analysis: ImpactAnalysis | null,
-): AdaptiveLowpassSeries {
-  const estimatedRate = estimateSampleRateHz(samples)
-  const sampleRateHz = estimatedRate && estimatedRate > 0 ? estimatedRate : 1000
+  if (n < 3) return result
 
-  let baseFreqHz: number
-  if (analysis?.ringingFrequencyEstimateHz && analysis.ringingFrequencyEstimateHz > 0) {
-    baseFreqHz = analysis.ringingFrequencyEstimateHz
-  } else {
-    // Fallback: choose a base frequency relative to the sample rate
-    baseFreqHz = sampleRateHz / 20 // e.g. 50 Hz when Fs = 1000 Hz
-  }
+  for (let i = 1; i < n - 1; i++) {
+    const vPrev = samples[i - 1].speed
+    const vNext = samples[i + 1].speed
+    const tPrev = samples[i - 1].timeMs
+    const tNext = samples[i + 1].timeMs
 
-  const nyquist = sampleRateHz / 2
-  const minCutoffHz = sampleRateHz / 200 // e.g. 5 Hz at 1000 Hz
-  const maxCutoffHz = nyquist * 0.8
-
-  const factorConfigs = [
-    { key: 'envLight' as const, factor: 0.7 },
-    { key: 'envMedium' as const, factor: 0.5 },
-    { key: 'envStrong' as const, factor: 0.35 },
-  ]
-
-  const results: AdaptiveLowpassSeries = {
-    envLight: null,
-    envMedium: null,
-    envStrong: null,
-  }
-
-  const filterConfigs: Array<{ series: string; cutoffHz: number; factor: number }> = []
-
-  for (const cfg of factorConfigs) {
-    let cutoff = baseFreqHz * cfg.factor
-    if (!Number.isFinite(cutoff) || cutoff <= 0) {
-      cutoff = minCutoffHz
-    } else {
-      cutoff = Math.min(Math.max(cutoff, minCutoffHz), maxCutoffHz)
+    if (vPrev == null || vNext == null || !Number.isFinite(vPrev) || !Number.isFinite(vNext)) {
+      continue
     }
 
-    const filtered = applyButterworthLowpassAccel(samples, cutoff, {
-      order: 4,
-      zeroPhase: true,
-    })
-    ;(results as any)[cfg.key] = filtered
+    const dt = (tNext - tPrev) / 1000 // convert to seconds
 
-    filterConfigs.push({
-      series: cfg.key,
-      cutoffHz: cutoff,
-      factor: cfg.factor,
-    })
+    if (dt <= 0 || !Number.isFinite(dt)) {
+      continue
+    }
+
+    result[i] = (vNext - vPrev) / dt
   }
 
-  console.log(
-    'AdaptiveLowpassConfig ' +
-      JSON.stringify(
-        {
-          sampleRateHz,
-          baseFreqHz,
-          filters: filterConfigs,
-        },
-        null,
-        2,
-      ),
-  )
+  return result
+}
 
-  return results
+/**
+ * Compute acceleration from position using second derivative (central difference).
+ */
+export function computeAccelFromPos(samples: Array<SamplePoint>): Array<number | null> {
+  const n = samples.length
+  const result = new Array<number | null>(n).fill(null)
+
+  if (n < 3) return result
+
+  for (let i = 1; i < n - 1; i++) {
+    const pPrev = samples[i - 1].pos
+    const pCurr = samples[i].pos
+    const pNext = samples[i + 1].pos
+
+    const tPrev = samples[i - 1].timeMs
+    const tCurr = samples[i].timeMs
+    const tNext = samples[i + 1].timeMs
+
+    if (
+      pPrev == null ||
+      pCurr == null ||
+      pNext == null ||
+      !Number.isFinite(pPrev) ||
+      !Number.isFinite(pCurr) ||
+      !Number.isFinite(pNext)
+    ) {
+      continue
+    }
+
+    // Time deltas in seconds
+    const dt1 = (tCurr - tPrev) / 1000
+    const dt2 = (tNext - tCurr) / 1000
+
+    if (dt1 <= 0 || dt2 <= 0 || !Number.isFinite(dt1) || !Number.isFinite(dt2)) {
+      continue
+    }
+
+    // Second derivative (acceleration) using central difference
+    const dtAvg = (dt1 + dt2) / 2
+    result[i] = (pNext - 2 * pCurr + pPrev) / (dtAvg * dtAvg)
+  }
+
+  return result
 }

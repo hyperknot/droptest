@@ -9,40 +9,27 @@ export interface SamplePoint {
   pos: number | null
   jerk: number | null
 
-  // MAIN filtered series used by the app (Savitzky–Golay "auto" smoothing)
-  // (window chosen adaptively from ringing analysis, roughly a fraction of the ringing period)
-  accelFiltered: number | null
-
   // Original factory/logger-provided filtered acceleration from CSV
   accelFactoryFiltered: number | null
 
-  // Additional experimental series:
-  // - Savitzky–Golay with a shorter window (more detail, less smoothing)
-  accelSGShort: number | null
+  // User-configurable filtered series
+  accelFiltered: number | null // Savitzky–Golay main
+  accelSGShort: number | null // (unused in new UI)
+  accelSGFull: number | null // Savitzky–Golay strong
+  accelMA9: number | null // Moving average
 
-  // - Savitzky–Golay with a window ~ one ringing period (very strong smoothing)
-  accelSGFull: number | null
+  // Butterworth filters (repurposed slots)
+  accelLPEnvLight: number | null // Butterworth LP #1
+  accelLPEnvMedium: number | null // Butterworth LP #2
+  accelLPEnvStrong: number | null // Notch / band-stop
 
-  // - Simple centered moving average with window size 9 samples
-  accelMA9: number | null
-
-  // - Approximate SAE J211 / ISO 6487 crash filters (4th‑order Butterworth, zero‑phase)
-  //   Common channel frequency classes (CFC):
-  //   - CFC 60: used for many occupant accelerations
-  //   - CFC 180: used for some harder / stiffer measurements
+  // Crash filters
   accelCFC60: number | null
   accelCFC180: number | null
 
-  // Adaptive Butterworth low‑pass “envelope-like” series derived from the estimated ringing
-  // frequency. These aim to suppress the oscillation and show the smoother foam
-  // compression–rebound curve:
-  //
-  // - Light: cutoff somewhat below the ringing frequency
-  // - Medium: cutoff roughly half the ringing frequency
-  // - Strong: cutoff well below the ringing frequency (most ripple removed)
-  accelLPEnvLight: number | null
-  accelLPEnvMedium: number | null
-  accelLPEnvStrong: number | null
+  // Derived acceleration from kinematic quantities
+  accelFromSpeed: number | null // dv/dt
+  accelFromPos: number | null // d²x/dt²
 }
 
 export interface FileMetadata {
@@ -54,4 +41,52 @@ export interface DropTestData {
   filename: string
   samples: Array<SamplePoint>
   metadata: FileMetadata
+}
+
+export interface FilterConfig {
+  sg: {
+    enabled: boolean
+    windowSize: number
+    polynomial: number
+  }
+  sgFull: {
+    enabled: boolean
+    windowSize: number
+    polynomial: number
+  }
+  movingAverage: {
+    enabled: boolean
+    windowSize: number
+  }
+  butterworth1: {
+    enabled: boolean
+    cutoffHz: number
+    order: number
+    zeroPhase: boolean
+  }
+  butterworth2: {
+    enabled: boolean
+    cutoffHz: number
+    order: number
+    zeroPhase: boolean
+  }
+  notch: {
+    enabled: boolean
+    centerHz: number
+    bandwidthHz: number
+    order: number
+    zeroPhase: boolean
+  }
+  cfc60: {
+    enabled: boolean
+    cfc: number
+    order: number
+    zeroPhase: boolean
+  }
+  cfc180: {
+    enabled: boolean
+    cfc: number
+    order: number
+    zeroPhase: boolean
+  }
 }
