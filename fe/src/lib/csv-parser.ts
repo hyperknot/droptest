@@ -1,7 +1,5 @@
 import type { DropTestData, FileMetadata, SamplePoint } from '../types'
 
-const G_CONST = 9.81 // m/s^2
-
 function parseOptionalNumber(value: string | undefined): number | null {
   if (!value) return null
   const n = Number.parseFloat(value)
@@ -73,22 +71,26 @@ export function parseDropTestFile(
     const line = lines[i]
 
     if (line.startsWith('#')) {
-      // Extract info lines (skip empty comment lines)
       const content = line.substring(1).trim()
       if (content && !content.startsWith('INFO:') && !content.startsWith('---')) {
         metadata.info.push(content)
       }
-    } else if (line.includes('accel') && line.includes('time')) {
-      // Found the header row
+    } else if (line.includes('accel') && line.includes('datetime')) {
       dataStartIndex = i + 1
       break
     }
   }
 
-  // Parse data rows
-  const samples: Array<SamplePoint> = []
-  let firstDateTime: string | undefined
-  let firstDateTimeMs: number | undefined
+  // First pass: collect all datetime values and check they exist
+  const rawSamples: Array<{
+    accel: number
+    datetime: string
+    datetimeAbsMs: number
+    speed: number | null
+    pos: number | null
+    jerk: number | null
+    accelFiltered: number | null
+  }> = []
 
   for (let i = dataStartIndex; i < lines.length; i++) {
     const line = lines[i]
@@ -97,53 +99,58 @@ export function parseDropTestFile(
     const parts = line.split(',').map((s) => s.trim())
     if (parts.length < 3) continue
 
-    // Columns: accel, time0, datetime, speed, pos, jerk, accel_filtered
     const accel = Number.parseFloat(parts[0])
-    const time0 = Number.parseFloat(parts[1])
     const datetime = parts[2]
 
-    if (!Number.isFinite(accel) || !Number.isFinite(time0)) continue
+    if (!Number.isFinite(accel)) continue
+
+    const datetimeAbsMs = parseLabDatetimeToMs(datetime)
+    if (datetimeAbsMs === null) {
+      throw new Error(`Invalid datetime format at line ${i + 1}: "${datetime}"`)
+    }
 
     const speed = parseOptionalNumber(parts[3])
     const pos = parseOptionalNumber(parts[4])
     const jerk = parseOptionalNumber(parts[5])
-    const accelFilteredRaw = parseOptionalNumber(parts[6])
+    const accelFiltered = parseOptionalNumber(parts[6])
 
-    // Convert acceleration from m/s^2 to G
-    const accelG = accel / G_CONST
-    const accelFiltered = accelFilteredRaw != null ? accelFilteredRaw / G_CONST : null
-
-    // Convert time0 (seconds) to milliseconds
-    const timeMs = time0 * 1000
-
-    // Convert datetime string to ms since first sample
-    const datetimeAbsMs = parseLabDatetimeToMs(datetime)
-    let datetimeMsFromStart: number | undefined
-    if (datetimeAbsMs != null) {
-      if (firstDateTimeMs === undefined) {
-        firstDateTimeMs = datetimeAbsMs
-      }
-      datetimeMsFromStart = datetimeAbsMs - firstDateTimeMs
-    }
-
-    const sample: SamplePoint = {
-      timeMs,
-      accelG,
+    rawSamples.push({
+      accel,
       datetime,
-      datetimeMsFromStart,
-      time0,
+      datetimeAbsMs,
       speed,
       pos,
       jerk,
       accelFiltered,
-    }
+    })
+  }
 
-    samples.push(sample)
+  if (rawSamples.length === 0) {
+    throw new Error('No valid data samples found in file')
+  }
 
-    if (!firstDateTime && datetime) {
-      firstDateTime = datetime
+  // Check if datetime values are sorted (monotonically increasing)
+  for (let i = 1; i < rawSamples.length; i++) {
+    if (rawSamples[i].datetimeAbsMs < rawSamples[i - 1].datetimeAbsMs) {
+      throw new Error(
+        `Data is not sorted by datetime. Sample ${i} (${rawSamples[i].datetime}) comes before sample ${i - 1} (${rawSamples[i - 1].datetime})`,
+      )
     }
   }
+
+  // Calculate relative time from first sample (first sample = 0 ms)
+  const firstDateTimeMs = rawSamples[0].datetimeAbsMs
+  const firstDateTime = rawSamples[0].datetime
+
+  const samples: Array<SamplePoint> = rawSamples.map((raw) => ({
+    timeMs: raw.datetimeAbsMs - firstDateTimeMs,
+    accelG: raw.accel, // Raw data is already in G
+    datetime: raw.datetime,
+    speed: raw.speed,
+    pos: raw.pos,
+    jerk: raw.jerk,
+    accelFiltered: raw.accelFiltered, // Raw data is already in G
+  }))
 
   // Extract date from first datetime
   if (firstDateTime) {
@@ -153,53 +160,12 @@ export function parseDropTestFile(
     }
   }
 
-  // ---- Time alignment diagnostics: time0 vs datetime ----
-  if (samples.length > 1) {
-    const usable = samples.filter(
-      (s) => typeof s.time0 === 'number' && typeof s.datetimeMsFromStart === 'number',
-    )
-
-    if (usable.length > 1) {
-      const time0Ms = usable.map((s) => (s.time0 as number) * 1000)
-      const datetimeMs = usable.map((s) => s.datetimeMsFromStart as number)
-
-      const time0Min = Math.min(...time0Ms)
-      const time0Max = Math.max(...time0Ms)
-      const datetimeMin = Math.min(...datetimeMs)
-      const datetimeMax = Math.max(...datetimeMs)
-
-      const time0Range = time0Max - time0Min
-      const datetimeRange = datetimeMax - datetimeMin
-
-      // Test if datetime and time0 differ only by a constant:
-      // diff_i = datetime_i - time0_i (in ms); if diffs are all ~equal, it's a constant
-      const diffs = usable.map(
-        (s) => (s.datetimeMsFromStart as number) - (s.time0 as number) * 1000,
-      )
-      const diffMin = Math.min(...diffs)
-      const diffMax = Math.max(...diffs)
-      const diffAvg = diffs.reduce((sum, d) => sum + d, 0) / diffs.length
-      const maxDeviation = diffMax - diffMin
-
-      const approxConstant = maxDeviation < 0.5 // <= 0.5 ms spread
-
-      console.groupCollapsed('Time alignment diagnostics (time0 vs datetime)')
-      console.log('time0 range (ms):', { min: time0Min, max: time0Max, range: time0Range })
-      console.log('datetime range (ms since first sample):', {
-        min: datetimeMin,
-        max: datetimeMax,
-        range: datetimeRange,
-      })
-      console.log('datetime - time0 offset (ms):', {
-        approxConstant,
-        averageOffsetMs: diffAvg,
-        minOffsetMs: diffMin,
-        maxOffsetMs: diffMax,
-        maxDeviationMs: maxDeviation,
-      })
-      console.groupEnd()
-    }
-  }
+  console.log('Time range (ms):', {
+    min: samples[0].timeMs,
+    max: samples[samples.length - 1].timeMs,
+    duration: samples[samples.length - 1].timeMs,
+    sampleCount: samples.length,
+  })
 
   return {
     filename,

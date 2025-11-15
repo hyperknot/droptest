@@ -38,44 +38,85 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
     const xMax = xMaxRaw + xPadding
 
     const series: echarts.SeriesOption[] = []
+    const yAxes: echarts.YAXisComponentOption[] = []
 
-    const addSeries = (
-      key: keyof SamplePoint,
-      displayName: string,
-      color: string,
-      accessor: (s: SamplePoint) => number | null | undefined,
-    ) => {
-      if (!props.visibleSeries[key as string]) return
+    const seriesConfig: Array<{
+      key: keyof SamplePoint
+      displayName: string
+      color: string
+      accessor: (s: SamplePoint) => number | null | undefined
+    }> = [
+      { key: 'accelG', displayName: 'Accel (G)', color: '#2563eb', accessor: (s) => s.accelG },
+      {
+        key: 'accelFiltered',
+        displayName: 'Accel filtered (G)',
+        color: '#0ea5e9',
+        accessor: (s) => s.accelFiltered ?? null,
+      },
+      { key: 'speed', displayName: 'Speed', color: '#16a34a', accessor: (s) => s.speed ?? null },
+      { key: 'pos', displayName: 'Position', color: '#a855f7', accessor: (s) => s.pos ?? null },
+      { key: 'jerk', displayName: 'Jerk', color: '#f97316', accessor: (s) => s.jerk ?? null },
+    ]
+
+    // Build visible series with their calculated ranges
+    const visibleSeriesInfo: Array<{
+      config: typeof seriesConfig[0]
+      min: number
+      max: number
+      yAxisIndex: number
+    }> = []
+
+    let yAxisIndex = 0
+    for (const config of seriesConfig) {
+      if (!props.visibleSeries[config.key as string]) continue
 
       const values: number[] = []
       for (const s of samples) {
-        const v = accessor(s)
+        const v = config.accessor(s)
         if (v != null && Number.isFinite(v)) values.push(v)
       }
-      if (values.length === 0) return
+      if (values.length === 0) continue
 
+      const min = Math.min(...values)
+      const max = Math.max(...values)
+
+      visibleSeriesInfo.push({
+        config,
+        min,
+        max,
+        yAxisIndex: yAxisIndex++,
+      })
+    }
+
+    // Create hidden Y-axes, each scaled to its series range
+    for (const info of visibleSeriesInfo) {
+      const range = info.max - info.min
+      const padding = range * 0.05
+
+      yAxes.push({
+        type: 'value',
+        show: false, // Hide the axis completely
+        min: info.min - padding,
+        max: info.max + padding,
+      })
+
+      // Add series bound to this Y-axis
       series.push({
-        name: displayName,
+        name: info.config.displayName,
         type: 'line',
+        yAxisIndex: info.yAxisIndex,
         showSymbol: false,
         smooth: false,
         lineStyle: {
           width: 2,
-          color,
+          color: info.config.color,
         },
         data: samples.map((s) => {
-          const v = accessor(s)
+          const v = info.config.accessor(s)
           return [s.timeMs, v != null && Number.isFinite(v) ? v : null]
         }),
       })
     }
-
-    // Build series for all numeric columns
-    addSeries('accelG', 'Accel (G)', '#2563eb', (s) => s.accelG)
-    addSeries('accelFiltered', 'Accel filtered (G)', '#0ea5e9', (s) => s.accelFiltered ?? null)
-    addSeries('speed', 'Speed', '#16a34a', (s) => s.speed ?? null)
-    addSeries('pos', 'Position', '#a855f7', (s) => s.pos ?? null)
-    addSeries('jerk', 'Jerk', '#f97316', (s) => s.jerk ?? null)
 
     const option: echarts.EChartsOption = {
       animation: false,
@@ -103,10 +144,7 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
         min: xMin,
         max: xMax,
       },
-      yAxis: {
-        type: 'value',
-        show: false, // Hide Y-axis completely
-      },
+      yAxis: yAxes,
       dataZoom: [
         {
           type: 'inside',
