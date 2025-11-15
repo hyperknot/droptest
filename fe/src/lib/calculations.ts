@@ -5,19 +5,80 @@ export interface SeriesConfig {
   displayName: string
   color: string
   accessor: (s: SamplePoint) => number | null | undefined
+  group: 'accel' | 'speed' | 'position' | 'jerk' | 'other'
 }
 
 export const SERIES_CONFIG: Array<SeriesConfig> = [
-  { key: 'accelG', displayName: 'Accel (G)', color: '#2563eb', accessor: (s) => s.accelG },
+  {
+    key: 'accelG',
+    displayName: 'Accel raw (G)',
+    color: '#2563eb',
+    accessor: (s) => s.accelG,
+    group: 'accel',
+  },
   {
     key: 'accelFiltered',
-    displayName: 'Accel filtered (G)',
+    displayName: 'Accel SG auto (G)',
     color: '#0ea5e9',
     accessor: (s) => s.accelFiltered ?? null,
+    group: 'accel',
   },
-  { key: 'speed', displayName: 'Speed', color: '#16a34a', accessor: (s) => s.speed ?? null },
-  { key: 'pos', displayName: 'Position', color: '#a855f7', accessor: (s) => s.pos ?? null },
-  { key: 'jerk', displayName: 'Jerk', color: '#f97316', accessor: (s) => s.jerk ?? null },
+  {
+    key: 'accelFactoryFiltered',
+    displayName: 'Accel factory filtered (G)',
+    color: '#6366f1',
+    accessor: (s) => s.accelFactoryFiltered ?? null,
+    group: 'accel',
+  },
+  {
+    key: 'accelSGShort',
+    displayName: 'Accel SG short window (G)',
+    color: '#22c55e',
+    accessor: (s) => s.accelSGShort ?? null,
+    group: 'accel',
+  },
+  {
+    key: 'accelMA9',
+    displayName: 'Accel moving avg 9 (G)',
+    color: '#facc15',
+    accessor: (s) => s.accelMA9 ?? null,
+    group: 'accel',
+  },
+  {
+    key: 'accelCFC60',
+    displayName: 'Accel CFC 60 (Butterworth crash filter, G)',
+    color: '#ef4444',
+    accessor: (s) => s.accelCFC60 ?? null,
+    group: 'accel',
+  },
+  {
+    key: 'accelCFC180',
+    displayName: 'Accel CFC 180 (Butterworth crash filter, G)',
+    color: '#b91c1c',
+    accessor: (s) => s.accelCFC180 ?? null,
+    group: 'accel',
+  },
+  {
+    key: 'speed',
+    displayName: 'Speed',
+    color: '#16a34a',
+    accessor: (s) => s.speed ?? null,
+    group: 'speed',
+  },
+  {
+    key: 'pos',
+    displayName: 'Position',
+    color: '#a855f7',
+    accessor: (s) => s.pos ?? null,
+    group: 'position',
+  },
+  {
+    key: 'jerk',
+    displayName: 'Jerk',
+    color: '#f97316',
+    accessor: (s) => s.jerk ?? null,
+    group: 'jerk',
+  },
 ]
 
 export interface SeriesRange {

@@ -5,6 +5,7 @@ import type { SamplePoint } from '../types'
 import type { RangeCommand } from '../App'
 import {
   SERIES_CONFIG,
+  type SeriesConfig,
   calculateSeriesRange,
   calculateTimeRange,
   addPadding,
@@ -93,14 +94,12 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
 
     const axisRange = addPadding(timeRange)
 
-    // Build visible series
+    // Build visible series infos
     const visibleSeriesInfo: Array<{
-      config: typeof SERIES_CONFIG[0]
+      config: SeriesConfig
       range: { min: number; max: number }
-      yAxisIndex: number
     }> = []
 
-    let yAxisIndex = 0
     for (const config of SERIES_CONFIG) {
       if (!props.visibleSeries[config.key as string]) continue
 
@@ -110,48 +109,76 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       visibleSeriesInfo.push({
         config,
         range,
-        yAxisIndex: yAxisIndex++,
       })
     }
 
-    // Build Y-axes (even if no series visible, to preserve chart structure)
-    const yAxes: echarts.YAXisComponentOption[] =
-      visibleSeriesInfo.length > 0
-        ? visibleSeriesInfo.map((info) => {
-            const padding = (info.range.max - info.range.min) * 0.05
-            return {
-              type: 'value',
-              show: false,
-              min: info.range.min - padding,
-              max: info.range.max + padding,
-            }
-          })
-        : [
-            {
-              type: 'value',
-              show: false,
-            },
-          ]
+    // Group ranges so that all accel series share the same Y axis
+    type GroupRange = { min: number; max: number }
+    const groupRanges = new Map<SeriesConfig['group'], GroupRange>()
+
+    for (const info of visibleSeriesInfo) {
+      const group = info.config.group
+      const existing = groupRanges.get(group)
+      if (!existing) {
+        groupRanges.set(group, { ...info.range })
+      } else {
+        existing.min = Math.min(existing.min, info.range.min)
+        existing.max = Math.max(existing.max, info.range.max)
+      }
+    }
+
+    const groupOrder: Array<SeriesConfig['group']> = ['accel', 'speed', 'position', 'jerk', 'other']
+
+    const orderedGroups = Array.from(groupRanges.entries()).sort(
+      (a, b) =>
+        groupOrder.indexOf(a[0]) -
+        groupOrder.indexOf(b[0]),
+    )
+
+    const yAxes: echarts.YAXisComponentOption[] = []
+    const groupAxisIndex = new Map<SeriesConfig['group'], number>()
+
+    orderedGroups.forEach(([group, range], index) => {
+      const span = range.max - range.min || 1
+      const padding = span * 0.05
+      yAxes.push({
+        type: 'value',
+        show: false,
+        min: range.min - padding,
+        max: range.max + padding,
+      })
+      groupAxisIndex.set(group, index)
+    })
+
+    if (yAxes.length === 0) {
+      yAxes.push({
+        type: 'value',
+        show: false,
+      })
+    }
 
     // Build series (empty array if none visible)
-    const series: echarts.SeriesOption[] = visibleSeriesInfo.map((info) => ({
-      name: info.config.displayName,
-      type: 'line',
-      yAxisIndex: info.yAxisIndex,
-      showSymbol: false,
-      smooth: false,
-      lineStyle: {
-        width: 2,
-        color: info.config.color,
-      },
-      itemStyle: {
-        color: info.config.color,
-      },
-      data: samples.map((s) => {
-        const v = info.config.accessor(s)
-        return [s.timeMs, v != null && Number.isFinite(v) ? v : null]
-      }),
-    }))
+    const series: echarts.SeriesOption[] = visibleSeriesInfo.map((info) => {
+      const yAxisIndex = groupAxisIndex.get(info.config.group) ?? 0
+      return {
+        name: info.config.displayName,
+        type: 'line',
+        yAxisIndex,
+        showSymbol: false,
+        smooth: false,
+        lineStyle: {
+          width: 2,
+          color: info.config.color,
+        },
+        itemStyle: {
+          color: info.config.color,
+        },
+        data: samples.map((s) => {
+          const v = info.config.accessor(s)
+          return [s.timeMs, v != null && Number.isFinite(v) ? v : null]
+        }),
+      }
+    })
 
     const option: echarts.EChartsOption = {
       animation: false,

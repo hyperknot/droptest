@@ -12,13 +12,21 @@ export const AppUI: Component = () => {
   const [testData, setTestData] = createSignal<DropTestData | null>(null)
   const [error, setError] = createSignal<string>('')
   const [isDragging, setIsDragging] = createSignal(false)
+
+  // Default visible series
   const [visibleSeries, setVisibleSeries] = createSignal<Record<string, boolean>>({
     accelG: true,
-    accelFiltered: true,
+    accelFiltered: true, // SG auto
+    accelFactoryFiltered: false,
+    accelSGShort: false,
+    accelMA9: false,
+    accelCFC60: false,
+    accelCFC180: false,
     speed: true,
     pos: true,
     jerk: true,
   })
+
   const [rangeCommand, setRangeCommand] = createSignal<RangeCommand>(null)
 
   const handleDrop = async (e: DragEvent) => {
