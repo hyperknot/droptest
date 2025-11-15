@@ -39,19 +39,23 @@ function findFirstHitRange(samples: Array<SamplePoint>): { start: number; end: n
     endIdx = i // If never goes under, use last point
   }
 
-  const startTime = samples[startIdx].timeMs - 10 // Add 10ms padding before
-  const endTime = samples[endIdx].timeMs + 10 // Add 10ms padding after
+  const startTimeAccLimit = samples[startIdx].timeMs
+  const startTimeExpanded = startTimeAccLimit - 10 // Add 10ms padding before
+  const endTimeAccLimit = samples[endIdx].timeMs
+  const endTimeExpanded = endTimeAccLimit + 10 // Add 10ms padding after
 
   console.log('First hit range detected:', {
     startIdx,
     endIdx,
-    startTime,
-    endTime,
+    startTimeAccLimit,
+    startTimeExpanded: Math.max(0, startTimeExpanded),
+    endTimeAccLimit,
+    endTimeExpanded,
     startAccel: samples[startIdx].accelFiltered,
     endAccel: samples[endIdx].accelFiltered,
   })
 
-  return { start: Math.max(0, startTime), end: endTime }
+  return { start: Math.max(0, startTimeExpanded), end: endTimeExpanded }
 }
 
 export const AccelerationProfileChart: Component<AccelerationProfileChartProps> = (props) => {
@@ -87,16 +91,29 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       const hitRange = findFirstHitRange(samples)
       if (!hitRange) return
 
-      // Calculate percentage based on actual data range
+      // Calculate percentage based on AXIS range (with padding), not raw data range
       const times = samples.map((s) => s.timeMs)
-      const xMin = Math.min(...times)
-      const xMax = Math.max(...times)
+      const xMinRaw = Math.min(...times)
+      const xMaxRaw = Math.max(...times)
+      const xSpan = xMaxRaw - xMinRaw || 1
+      const xPadding = xSpan * 0.02
+      const xMin = xMinRaw - xPadding
+      const xMax = xMaxRaw + xPadding
       const totalRange = xMax - xMin
 
       if (totalRange === 0) return
 
       const startPercent = ((hitRange.start - xMin) / totalRange) * 100
       const endPercent = ((hitRange.end - xMin) / totalRange) * 100
+
+      console.log('Zooming to first hit range:', {
+        hitRangeStart: hitRange.start,
+        hitRangeEnd: hitRange.end,
+        axisMin: xMin,
+        axisMax: xMax,
+        startPercent,
+        endPercent,
+      })
 
       instance.dispatchAction({
         type: 'dataZoom',
