@@ -23,7 +23,6 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
     if (!instance) return
 
     const data = (props.samples || []).map((p) => [p.timeMs, p.accelG])
-    const maxTimeMs = data.length ? data[data.length - 1][0] : 0
 
     // Find time ranges where acceleration exceeds thresholds
     const findThresholdRange = (threshold: number): [number, number] | null => {
@@ -57,8 +56,8 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
         name: 'Time (ms)',
         nameLocation: 'middle',
         nameGap: 30,
-        min: 0,
-        max: Math.max(60, maxTimeMs),
+        min: -30,
+        max: 60,
         axisLabel: { formatter: (value: number) => value.toFixed(1) },
       },
       yAxis: {
