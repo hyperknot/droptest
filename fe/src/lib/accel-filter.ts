@@ -1,4 +1,5 @@
-import { IirCalculator, IirFilter } from 'fili'
+// @ts-expect-error
+import Fili from 'fili'
 import savitzkyGolay from 'ml-savitzky-golay'
 import type { SamplePoint } from '../types'
 import type { ImpactAnalysis } from './signal-analysis'
@@ -173,7 +174,8 @@ export function applyButterworthLowpassAccel(
 
   const values = samples.map((s) => s.accelG ?? 0)
 
-  const iirCalculator = new IirCalculator()
+  const iirCalculator = new Fili.CalcCascades()
+
   const coeffs = iirCalculator.lowpass({
     order,
     characteristic: 'butterworth',
@@ -182,11 +184,11 @@ export function applyButterworthLowpassAccel(
     preGain: true,
   })
 
-  const forwardFilter = new IirFilter(coeffs)
+  const forwardFilter = new Fili.IirFilter(coeffs)
   let filtered = forwardFilter.multiStep(values)
 
   if (zeroPhase) {
-    const reverseFilter = new IirFilter(coeffs)
+    const reverseFilter = new Fili.IirFilter(coeffs)
     filtered = reverseFilter.multiStep(filtered.slice().reverse()).reverse()
   }
 
