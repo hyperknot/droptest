@@ -1,0 +1,31 @@
+{
+  "name": "fe",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "rm -rf dist*",
+    "dev": "pnpm clean; vite",
+    "build": "vite build && rg ISDEV_TEST_STRING dist/ -uuu || true",
+    "preview": "pnpm build; vite preview",
+    "typecheck:node": "cd ..; pnpm tsc -p tsconfig.node.json --composite false",
+    "typecheck:web": "cd ..; pnpm tsc -p tsconfig.app.json --composite false",
+    "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
+    "preview_w": "pnpm build && wrangler dev",
+    "deploy_w": "pnpm build && wrangler deploy"
+  },
+  "dependencies": {
+    "@kobalte/core": "^0.13.11",
+    "echarts": "^6.0.0",
+    "igc-parser": "^2.0.0",
+    "lucide-solid": "^0.548.0",
+    "solid-js": "^1.9.10"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.16",
+    "sass-embedded": "^1.93.2",
+    "tailwindcss": "^4.1.16",
+    "vite": "^7.1.12",
+    "vite-plugin-solid": "^2.11.10",
+    "wrangler": "^4.43.0"
+  }
+}
