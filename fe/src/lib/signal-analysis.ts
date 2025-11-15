@@ -57,7 +57,7 @@ export interface ImpactAnalysis {
 /**
  * Estimate sample rate from timeMs (assumes mostly uniform sampling).
  */
-function estimateSampleRateHz(samples: Array<SamplePoint>): number | null {
+export function estimateSampleRateHz(samples: Array<SamplePoint>): number | null {
   if (samples.length < 2) return null
   const dt = samples[1].timeMs - samples[0].timeMs
   if (!Number.isFinite(dt) || dt <= 0) return null

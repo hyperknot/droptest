@@ -138,7 +138,7 @@ export interface FirstHitRange {
 export function findFirstHitRange(samples: Array<SamplePoint>): FirstHitRange | null {
   const threshold = 1.0 // +1 G
 
-  // Find first point where accelFiltered > threshold
+  // Find first point where accelFiltered > threshold (our main SG-auto filtered series)
   let startIdx = -1
   for (let i = 0; i < samples.length; i++) {
     const accel = samples[i].accelFiltered
@@ -149,7 +149,7 @@ export function findFirstHitRange(samples: Array<SamplePoint>): FirstHitRange | 
   }
 
   if (startIdx === -1) {
-    console.log('No first hit found (accelFiltered never exceeded +1 G)')
+    console.log(`FirstHitRange ${JSON.stringify({ message: 'No first hit found' }, null, 2)}`)
     return null
   }
 
@@ -167,12 +167,19 @@ export function findFirstHitRange(samples: Array<SamplePoint>): FirstHitRange | 
   const startTime = samples[startIdx].timeMs - 10 // 10ms padding before
   const endTime = samples[endIdx].timeMs + 10 // 10ms padding after
 
-  console.log('First hit range detected:', {
-    startIdx,
-    endIdx,
-    startTime: Math.max(0, startTime),
-    endTime,
-  })
+  console.log(
+    'FirstHitRange ' +
+      JSON.stringify(
+        {
+          startIdx,
+          endIdx,
+          startTime: Math.max(0, startTime),
+          endTime,
+        },
+        null,
+        2,
+      ),
+  )
 
   return {
     start: Math.max(0, startTime),
