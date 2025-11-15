@@ -1,7 +1,7 @@
 export interface SamplePoint {
-  timeMs: number // milliseconds from first sample (based on datetime), first sample = 0
+  timeMs: number // milliseconds from detected origin (first sample = 0)
   accelG: number // acceleration in G
-  datetime: string // original datetime string from CSV
+  // datetime: string // original datetime string from CSV - NOT USED
   speed: number | null
   pos: number | null
   jerk: number | null

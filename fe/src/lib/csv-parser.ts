@@ -55,6 +55,63 @@ function parseLabDatetimeToMs(value: string | undefined): number | null {
   return Date.UTC(year, month - 1, day, hour, minute, second, millis)
 }
 
+/**
+ * Detect the origin point by finding when acceleration first goes
+ * below -0.5 G and stays there for 100ms, then calculating back 200ms
+ */
+function detectOriginTime(samples: Array<SamplePoint>): number {
+  const threshold = -0.5 // G
+  const durationMs = 100 // ms - must stay below threshold for this long
+  const lookbackMs = 200 // ms - origin is this far before trigger point
+
+  for (let i = 0; i < samples.length; i++) {
+    if (samples[i].accelG >= threshold) {
+      continue // Not below threshold yet
+    }
+
+    const triggerTime = samples[i].timeMs
+    const durationEnd = triggerTime + durationMs
+
+    // Check if we have enough data to verify 100ms duration
+    const lastSampleTime = samples[samples.length - 1].timeMs
+    if (lastSampleTime < durationEnd) {
+      // Not enough data to verify full duration
+      continue
+    }
+
+    // Check if acceleration stays below threshold for the next 100ms
+    let staysBelow = true
+
+    for (let j = i; j < samples.length; j++) {
+      if (samples[j].timeMs > durationEnd) {
+        // Successfully verified full 100ms period
+        break
+      }
+
+      if (samples[j].accelG >= threshold) {
+        // Went back above threshold during the 100ms period
+        staysBelow = false
+        break
+      }
+    }
+
+    if (staysBelow) {
+      // Found the trigger point! Origin is 200ms before this
+      const originTime = triggerTime - lookbackMs
+      console.log('Origin detected:', {
+        triggerTime,
+        originTime: Math.max(0, originTime),
+        triggerAccel: samples[i].accelG,
+      })
+      return Math.max(0, originTime)
+    }
+  }
+
+  // No valid trigger found, use 0 as origin
+  console.log('No origin trigger detected, using time 0')
+  return 0
+}
+
 export function parseDropTestFile(
   text: string,
   filename: string,
@@ -145,11 +202,23 @@ export function parseDropTestFile(
   const samples: Array<SamplePoint> = rawSamples.map((raw) => ({
     timeMs: raw.datetimeAbsMs - firstDateTimeMs,
     accelG: raw.accel, // Raw data is already in G
-    datetime: raw.datetime,
+    // datetime: raw.datetime, // Commented out - not used
     speed: raw.speed,
     pos: raw.pos,
     jerk: raw.jerk,
     accelFiltered: raw.accelFiltered, // Raw data is already in G
+  }))
+
+  // Detect origin point based on acceleration threshold
+  const originTimeMs = detectOriginTime(samples)
+
+  // Filter samples to only include those at or after origin
+  const filteredSamples = samples.filter((s) => s.timeMs >= originTimeMs)
+
+  // Adjust timeMs to be relative to new origin
+  const adjustedSamples = filteredSamples.map((s) => ({
+    ...s,
+    timeMs: s.timeMs - originTimeMs,
   }))
 
   // Extract date from first datetime
@@ -160,16 +229,17 @@ export function parseDropTestFile(
     }
   }
 
-  console.log('Time range (ms):', {
-    min: samples[0].timeMs,
-    max: samples[samples.length - 1].timeMs,
-    duration: samples[samples.length - 1].timeMs,
-    sampleCount: samples.length,
+  console.log('Time range after origin detection (ms):', {
+    originalSamples: samples.length,
+    filteredSamples: adjustedSamples.length,
+    originTimeMs,
+    newDuration:
+      adjustedSamples.length > 0 ? adjustedSamples[adjustedSamples.length - 1].timeMs : 0,
   })
 
   return {
     filename,
-    samples,
+    samples: adjustedSamples,
     metadata,
   }
 }

@@ -6,6 +6,8 @@ interface ControlPanelProps {
   samples: Array<SamplePoint>
   visibleSeries: Record<string, boolean>
   setVisibleSeries: (v: Record<string, boolean>) => void
+  onFullRange: () => void
+  onFirstHit: () => void
 }
 
 interface SeriesInfo {
@@ -48,6 +50,22 @@ export const ControlPanel: Component<ControlPanelProps> = (props) => {
   return (
     <section class="bg-white rounded-xl shadow-sm border border-gray-200 py-3 px-4 space-y-4">
       <h2 class="text-lg font-semibold">Controls</h2>
+
+      {/* Range buttons */}
+      <div class="flex gap-2">
+        <button
+          onClick={props.onFullRange}
+          class="flex-1 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+        >
+          Full range
+        </button>
+        <button
+          onClick={props.onFirstHit}
+          class="flex-1 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm font-medium"
+        >
+          First hit
+        </button>
+      </div>
 
       <div class="space-y-3">
         <For each={series}>

@@ -2,10 +2,56 @@ import * as echarts from 'echarts'
 import type { Component } from 'solid-js'
 import { createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 import type { SamplePoint } from '../types'
+import type { RangeCommand } from '../App'
 
 interface AccelerationProfileChartProps {
   samples: Array<SamplePoint>
   visibleSeries: Record<string, boolean>
+  rangeCommand: RangeCommand
+}
+
+function findFirstHitRange(samples: Array<SamplePoint>): { start: number; end: number } | null {
+  const threshold = 1.0 // +1 G
+
+  // Find first point where accelFiltered > threshold
+  let startIdx = -1
+  for (let i = 0; i < samples.length; i++) {
+    const accel = samples[i].accelFiltered
+    if (accel != null && accel > threshold) {
+      startIdx = i
+      break
+    }
+  }
+
+  if (startIdx === -1) {
+    console.log('No first hit found (accelFiltered never exceeded +1 G)')
+    return null
+  }
+
+  // Find when it goes back under threshold
+  let endIdx = startIdx
+  for (let i = startIdx + 1; i < samples.length; i++) {
+    const accel = samples[i].accelFiltered
+    if (accel != null && accel <= threshold) {
+      endIdx = i
+      break
+    }
+    endIdx = i // If never goes under, use last point
+  }
+
+  const startTime = samples[startIdx].timeMs - 10 // Add 10ms padding before
+  const endTime = samples[endIdx].timeMs + 10 // Add 10ms padding after
+
+  console.log('First hit range detected:', {
+    startIdx,
+    endIdx,
+    startTime,
+    endTime,
+    startAccel: samples[startIdx].accelFiltered,
+    endAccel: samples[endIdx].accelFiltered,
+  })
+
+  return { start: Math.max(0, startTime), end: endTime }
 }
 
 export const AccelerationProfileChart: Component<AccelerationProfileChartProps> = (props) => {
@@ -16,6 +62,47 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
     if (chartRef) {
       const instance = echarts.init(chartRef)
       setChart(instance)
+    }
+  })
+
+  // Handle range commands
+  createEffect(() => {
+    const cmd = props.rangeCommand
+    const instance = chart()
+    if (!instance || !cmd) return
+
+    const samples = props.samples
+    if (samples.length === 0) return
+
+    if (cmd.type === 'full') {
+      // Reset to full range
+      instance.dispatchAction({
+        type: 'dataZoom',
+        start: 0,
+        end: 100,
+      })
+      console.log('Reset to full range')
+    } else if (cmd.type === 'firstHit') {
+      // Find first hit range
+      const hitRange = findFirstHitRange(samples)
+      if (!hitRange) return
+
+      // Calculate percentage based on actual data range
+      const times = samples.map((s) => s.timeMs)
+      const xMin = Math.min(...times)
+      const xMax = Math.max(...times)
+      const totalRange = xMax - xMin
+
+      if (totalRange === 0) return
+
+      const startPercent = ((hitRange.start - xMin) / totalRange) * 100
+      const endPercent = ((hitRange.end - xMin) / totalRange) * 100
+
+      instance.dispatchAction({
+        type: 'dataZoom',
+        start: Math.max(0, Math.min(100, startPercent)),
+        end: Math.max(0, Math.min(100, endPercent)),
+      })
     }
   })
 
@@ -88,6 +175,12 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       })
     }
 
+    // If no series are visible, clear the chart
+    if (visibleSeriesInfo.length === 0) {
+      instance.clear()
+      return
+    }
+
     // Create hidden Y-axes, each scaled to its series range
     for (const info of visibleSeriesInfo) {
       const range = info.max - info.min
@@ -110,6 +203,9 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
         lineStyle: {
           width: 2,
           color: info.config.color,
+        },
+        itemStyle: {
+          color: info.config.color, // Ensures tooltip marker uses the same color
         },
         data: samples.map((s) => {
           const v = info.config.accessor(s)
@@ -161,7 +257,8 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       series,
     }
 
-    instance.setOption(option, true)
+    // Use replaceMerge to only update series and yAxis, preserving dataZoom state
+    instance.setOption(option, { replaceMerge: ['series', 'yAxis'] })
     instance.resize()
   })
 

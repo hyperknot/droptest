@@ -28,14 +28,6 @@ export const FileInfoPanel: Component<FileInfoProps> = (props) => {
             <span class="font-medium">{props.data.metadata.date}</span>
           </div>
         </Show>
-
-        <Show when={props.data.metadata.info && props.data.metadata.info.length > 0}>
-          <div class="pt-3 border-t border-gray-200">
-            <For each={props.data.metadata.info}>
-              {(line) => <div class="text-xs text-gray-700 leading-relaxed">{line}</div>}
-            </For>
-          </div>
-        </Show>
       </div>
     </section>
   )

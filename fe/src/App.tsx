@@ -6,6 +6,8 @@ import { ControlPanel } from './components/ControlPanel'
 import { parseDropTestFile } from './lib/csv-parser'
 import type { DropTestData } from './types'
 
+export type RangeCommand = { type: 'full' } | { type: 'firstHit' } | null
+
 export const AppUI: Component = () => {
   const [testData, setTestData] = createSignal<DropTestData | null>(null)
   const [error, setError] = createSignal<string>('')
@@ -17,6 +19,7 @@ export const AppUI: Component = () => {
     pos: true,
     jerk: true,
   })
+  const [rangeCommand, setRangeCommand] = createSignal<RangeCommand>(null)
 
   const handleDrop = async (e: DragEvent) => {
     e.preventDefault()
@@ -56,6 +59,14 @@ export const AppUI: Component = () => {
   }
 
   const hasData = () => testData() !== null
+
+  const handleFullRange = () => {
+    setRangeCommand({ type: 'full' })
+  }
+
+  const handleFirstHit = () => {
+    setRangeCommand({ type: 'firstHit' })
+  }
 
   return (
     <div
@@ -110,6 +121,7 @@ export const AppUI: Component = () => {
               <AccelerationProfileChart
                 samples={testData()!.samples}
                 visibleSeries={visibleSeries()}
+                rangeCommand={rangeCommand()}
               />
             </section>
 
@@ -119,6 +131,8 @@ export const AppUI: Component = () => {
                 samples={testData()!.samples}
                 visibleSeries={visibleSeries()}
                 setVisibleSeries={setVisibleSeries}
+                onFullRange={handleFullRange}
+                onFirstHit={handleFirstHit}
               />
               <FileInfoPanel data={testData()!} />
             </div>
