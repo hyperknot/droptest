@@ -1,8 +1,7 @@
 import * as echarts from 'echarts'
 import type { Component } from 'solid-js'
 import { createEffect, createSignal, onCleanup, onMount } from 'solid-js'
-import type { SamplePoint } from '../types'
-import type { RangeCommand } from '../App'
+import type { RangeCommand, SamplePoint } from '../types'
 import {
   SERIES_CONFIG,
   type SeriesConfig,

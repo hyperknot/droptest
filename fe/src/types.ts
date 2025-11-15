@@ -90,3 +90,5 @@ export interface FilterConfig {
     zeroPhase: boolean
   }
 }
+
+export type RangeCommand = { type: 'full' } | { type: 'firstHit' } | null
