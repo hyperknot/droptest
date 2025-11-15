@@ -1,16 +1,17 @@
 export interface SamplePoint {
-  timeMs: number // time in milliseconds
-  accelG: number // acceleration in G
-  datetime?: string // optional datetime string
-}
+  timeMs: number // time in milliseconds (from time0 * 1000)
+  accelG: number // acceleration in G (from accel)
+  datetime?: string // original datetime string from CSV
 
-export interface Statistics {
-  peakG: number
-  totalTime: number // ms
-  timeOver38G: number // ms
-  timeOver20G: number // ms
-  hic15: number
-  hic36: number
+  // Derived from datetime
+  datetimeMsFromStart?: number // ms since first sample's datetime
+
+  // Other raw columns
+  time0?: number // original time0 in seconds (centered on peak)
+  speed?: number | null
+  pos?: number | null
+  jerk?: number | null
+  accelFiltered?: number | null // filtered acceleration, in G
 }
 
 export interface FileMetadata {
@@ -22,5 +23,4 @@ export interface DropTestData {
   filename: string
   samples: Array<SamplePoint>
   metadata: FileMetadata
-  statistics: Statistics
 }

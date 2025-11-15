@@ -5,6 +5,7 @@ import type { SamplePoint } from '../types'
 
 interface AccelerationProfileChartProps {
   samples: Array<SamplePoint>
+  visibleSeries: Record<string, boolean>
 }
 
 export const AccelerationProfileChart: Component<AccelerationProfileChartProps> = (props) => {
@@ -22,33 +23,76 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
     const instance = chart()
     if (!instance) return
 
-    const data = (props.samples || []).map((p) => [p.timeMs, p.accelG])
-
-    // Find time ranges where acceleration exceeds thresholds
-    const findThresholdRange = (threshold: number): [number, number] | null => {
-      const points = data.filter(([_, aG]) => aG > threshold)
-      if (points.length === 0) return null
-
-      const startTime = points[0][0]
-      const endTime = points[points.length - 1][0]
-
-      return [startTime, endTime]
+    const samples = props.samples || []
+    if (samples.length === 0) {
+      instance.clear()
+      return
     }
 
-    const range38G = findThresholdRange(38)
-    const range20G = findThresholdRange(20)
+    const times = samples.map((s) => s.timeMs)
+    const xMinRaw = Math.min(...times)
+    const xMaxRaw = Math.max(...times)
+    const xSpan = xMaxRaw - xMinRaw || 1
+    const xPadding = xSpan * 0.02
+    const xMin = xMinRaw - xPadding
+    const xMax = xMaxRaw + xPadding
+
+    const series: echarts.SeriesOption[] = []
+
+    const addSeries = (
+      key: keyof SamplePoint,
+      displayName: string,
+      color: string,
+      accessor: (s: SamplePoint) => number | null | undefined,
+    ) => {
+      if (!props.visibleSeries[key as string]) return
+
+      const values: number[] = []
+      for (const s of samples) {
+        const v = accessor(s)
+        if (v != null && Number.isFinite(v)) values.push(v)
+      }
+      if (values.length === 0) return
+
+      series.push({
+        name: displayName,
+        type: 'line',
+        showSymbol: false,
+        smooth: false,
+        lineStyle: {
+          width: 2,
+          color,
+        },
+        data: samples.map((s) => {
+          const v = accessor(s)
+          return [s.timeMs, v != null && Number.isFinite(v) ? v : null]
+        }),
+      })
+    }
+
+    // Build series for all numeric columns
+    addSeries('accelG', 'Accel (G)', '#2563eb', (s) => s.accelG)
+    addSeries('accelFiltered', 'Accel filtered (G)', '#0ea5e9', (s) => s.accelFiltered ?? null)
+    addSeries('speed', 'Speed', '#16a34a', (s) => s.speed ?? null)
+    addSeries('pos', 'Position', '#a855f7', (s) => s.pos ?? null)
+    addSeries('jerk', 'Jerk', '#f97316', (s) => s.jerk ?? null)
 
     const option: echarts.EChartsOption = {
       animation: false,
-      grid: { left: 0, right: 0, top: 0, bottom: 0, containLabel: true },
+      grid: { left: 50, right: 20, top: 10, bottom: 50 },
       tooltip: {
         trigger: 'axis',
-        axisPointer: { type: 'line' },
+        axisPointer: { type: 'cross' },
         formatter: (params: any) => {
-          const p = Array.isArray(params) ? params[0] : params
-          const tMs = p?.data?.[0] ?? 0
-          const aG = p?.data?.[1] ?? 0
-          return `t = ${tMs.toFixed(2)} ms<br/>a = ${aG.toFixed(2)} G`
+          if (!Array.isArray(params) || params.length === 0) return ''
+          const x = params[0].data?.[0] ?? 0
+          const lines = [`<strong>t = ${x.toFixed(3)} ms</strong>`]
+          for (const p of params) {
+            const val = p.data?.[1]
+            if (val == null) continue
+            lines.push(`${p.marker} ${p.seriesName}: ${Number(val).toFixed(4)}`)
+          }
+          return lines.join('<br/>')
         },
       },
       xAxis: {
@@ -56,60 +100,27 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
         name: 'Time (ms)',
         nameLocation: 'middle',
         nameGap: 30,
-        min: -30,
-        max: 60,
-        axisLabel: { formatter: (value: number) => value.toFixed(1) },
+        min: xMin,
+        max: xMax,
       },
       yAxis: {
         type: 'value',
-        name: 'Acceleration (G)',
-        min: 0,
-        max: 45,
-        axisLabel: { formatter: '{value}' },
-        splitLine: { show: true },
+        show: false, // Hide Y-axis completely
       },
-      series: [
+      dataZoom: [
         {
-          name: 'Acceleration',
-          type: 'line',
-          smooth: false,
-          symbol: 'none',
-          lineStyle: { width: 2, color: '#2563eb' },
-          data,
+          type: 'inside',
+          xAxisIndex: 0,
+          filterMode: 'none',
         },
-        // Red line for >38G segment
-        ...(range38G
-          ? [
-              {
-                name: '38G Threshold',
-                type: 'line' as const,
-                symbol: 'none',
-                lineStyle: { width: 3, color: '#ef4444', type: 'solid' as const },
-                data: [
-                  [range38G[0], 38],
-                  [range38G[1], 38],
-                ],
-                tooltip: { show: false },
-              },
-            ]
-          : []),
-        // Orange line for >20G segment
-        ...(range20G
-          ? [
-              {
-                name: '20G Threshold',
-                type: 'line' as const,
-                symbol: 'none',
-                lineStyle: { width: 3, color: '#f97316', type: 'solid' as const },
-                data: [
-                  [range20G[0], 20],
-                  [range20G[1], 20],
-                ],
-                tooltip: { show: false },
-              },
-            ]
-          : []),
+        {
+          type: 'slider',
+          xAxisIndex: 0,
+          filterMode: 'none',
+          height: 25,
+        },
       ],
+      series,
     }
 
     instance.setOption(option, true)
@@ -124,5 +135,5 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
     }
   })
 
-  return <div ref={chartRef} class="w-full h-80 min-w-0" />
+  return <div ref={chartRef} class="w-full h-[600px] min-w-0" />
 }

@@ -2,8 +2,7 @@ import type { Component } from 'solid-js'
 import { createSignal, Show } from 'solid-js'
 import { AccelerationProfileChart } from './components/AccelerationProfileChart'
 import { FileInfoPanel } from './components/FileInfo'
-import { StatsPanel } from './components/StatsPanel'
-import { calculateStatistics } from './lib/calculations'
+import { ControlPanel } from './components/ControlPanel'
 import { parseDropTestFile } from './lib/csv-parser'
 import type { DropTestData } from './types'
 
@@ -11,6 +10,13 @@ export const AppUI: Component = () => {
   const [testData, setTestData] = createSignal<DropTestData | null>(null)
   const [error, setError] = createSignal<string>('')
   const [isDragging, setIsDragging] = createSignal(false)
+  const [visibleSeries, setVisibleSeries] = createSignal<Record<string, boolean>>({
+    accelG: true,
+    accelFiltered: true,
+    speed: true,
+    pos: true,
+    jerk: true,
+  })
 
   const handleDrop = async (e: DragEvent) => {
     e.preventDefault()
@@ -32,12 +38,7 @@ export const AppUI: Component = () => {
     try {
       const text = await file.text()
       const parsed = parseDropTestFile(text, file.name)
-      const stats = calculateStatistics(parsed.samples)
-
-      setTestData({
-        ...parsed,
-        statistics: stats,
-      })
+      setTestData(parsed)
     } catch (err) {
       setError(`Error parsing file: ${err}`)
       console.error(err)
@@ -63,7 +64,7 @@ export const AppUI: Component = () => {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
     >
-      <div class="max-w-5xl mx-auto py-8 px-4 space-y-6">
+      <div class="max-w-7xl mx-auto py-8 px-4 space-y-6">
         <header class="space-y-2">
           <h1 class="md:text-3xl text-xl font-bold tracking-tight">
             Harness Drop Test Data Visualizer
@@ -104,19 +105,22 @@ export const AppUI: Component = () => {
 
         <Show when={hasData()}>
           <div class="space-y-3">
-            {/* Chart */}
-            <section class="bg-white rounded-xl shadow-sm border border-gray-200 py-2 px-3 space-y-3">
-              <div>
-                <h2 class="text-lg font-semibold">Acceleration profile</h2>
-                <p class="text-xs text-gray-500">Recorded drop test data</p>
-              </div>
-              <AccelerationProfileChart samples={testData()!.samples} />
+            {/* Chart - full width */}
+            <section class="bg-white rounded-xl shadow-sm border border-gray-200 py-3 px-4">
+              <AccelerationProfileChart
+                samples={testData()!.samples}
+                visibleSeries={visibleSeries()}
+              />
             </section>
 
-            {/* File info and stats side by side */}
+            {/* Control panel and File info side by side */}
             <div class="grid gap-3 md:grid-cols-2 items-start">
+              <ControlPanel
+                samples={testData()!.samples}
+                visibleSeries={visibleSeries()}
+                setVisibleSeries={setVisibleSeries}
+              />
               <FileInfoPanel data={testData()!} />
-              <StatsPanel statistics={testData()!.statistics} />
             </div>
           </div>
         </Show>
