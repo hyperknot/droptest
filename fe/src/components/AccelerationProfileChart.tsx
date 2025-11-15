@@ -3,6 +3,14 @@ import type { Component } from 'solid-js'
 import { createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 import type { SamplePoint } from '../types'
 import type { RangeCommand } from '../App'
+import {
+  SERIES_CONFIG,
+  calculateSeriesRange,
+  calculateTimeRange,
+  addPadding,
+  findFirstHitRange,
+  calculateZoomPercent,
+} from '../lib/calculations'
 
 interface AccelerationProfileChartProps {
   samples: Array<SamplePoint>
@@ -10,57 +18,10 @@ interface AccelerationProfileChartProps {
   rangeCommand: RangeCommand
 }
 
-function findFirstHitRange(samples: Array<SamplePoint>): { start: number; end: number } | null {
-  const threshold = 1.0 // +1 G
-
-  // Find first point where accelFiltered > threshold
-  let startIdx = -1
-  for (let i = 0; i < samples.length; i++) {
-    const accel = samples[i].accelFiltered
-    if (accel != null && accel > threshold) {
-      startIdx = i
-      break
-    }
-  }
-
-  if (startIdx === -1) {
-    console.log('No first hit found (accelFiltered never exceeded +1 G)')
-    return null
-  }
-
-  // Find when it goes back under threshold
-  let endIdx = startIdx
-  for (let i = startIdx + 1; i < samples.length; i++) {
-    const accel = samples[i].accelFiltered
-    if (accel != null && accel <= threshold) {
-      endIdx = i
-      break
-    }
-    endIdx = i // If never goes under, use last point
-  }
-
-  const startTimeAccLimit = samples[startIdx].timeMs
-  const startTimeExpanded = startTimeAccLimit - 10 // Add 10ms padding before
-  const endTimeAccLimit = samples[endIdx].timeMs
-  const endTimeExpanded = endTimeAccLimit + 10 // Add 10ms padding after
-
-  console.log('First hit range detected:', {
-    startIdx,
-    endIdx,
-    startTimeAccLimit,
-    startTimeExpanded: Math.max(0, startTimeExpanded),
-    endTimeAccLimit,
-    endTimeExpanded,
-    startAccel: samples[startIdx].accelFiltered,
-    endAccel: samples[endIdx].accelFiltered,
-  })
-
-  return { start: Math.max(0, startTimeExpanded), end: endTimeExpanded }
-}
-
 export const AccelerationProfileChart: Component<AccelerationProfileChartProps> = (props) => {
   let chartRef: HTMLDivElement | undefined
   const [chart, setChart] = createSignal<echarts.ECharts | null>(null)
+  const [prevSamples, setPrevSamples] = createSignal<Array<SamplePoint> | null>(null)
 
   onMount(() => {
     if (chartRef) {
@@ -79,7 +40,6 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
     if (samples.length === 0) return
 
     if (cmd.type === 'full') {
-      // Reset to full range
       instance.dispatchAction({
         type: 'dataZoom',
         start: 0,
@@ -87,38 +47,25 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       })
       console.log('Reset to full range')
     } else if (cmd.type === 'firstHit') {
-      // Find first hit range
       const hitRange = findFirstHitRange(samples)
       if (!hitRange) return
 
-      // Calculate percentage based on AXIS range (with padding), not raw data range
-      const times = samples.map((s) => s.timeMs)
-      const xMinRaw = Math.min(...times)
-      const xMaxRaw = Math.max(...times)
-      const xSpan = xMaxRaw - xMinRaw || 1
-      const xPadding = xSpan * 0.02
-      const xMin = xMinRaw - xPadding
-      const xMax = xMaxRaw + xPadding
-      const totalRange = xMax - xMin
+      const timeRange = calculateTimeRange(samples)
+      if (!timeRange) return
 
-      if (totalRange === 0) return
-
-      const startPercent = ((hitRange.start - xMin) / totalRange) * 100
-      const endPercent = ((hitRange.end - xMin) / totalRange) * 100
+      const axisRange = addPadding(timeRange)
+      const zoomPercent = calculateZoomPercent(hitRange, axisRange)
 
       console.log('Zooming to first hit range:', {
-        hitRangeStart: hitRange.start,
-        hitRangeEnd: hitRange.end,
-        axisMin: xMin,
-        axisMax: xMax,
-        startPercent,
-        endPercent,
+        hitRange,
+        axisRange,
+        zoomPercent,
       })
 
       instance.dispatchAction({
         type: 'dataZoom',
-        start: Math.max(0, Math.min(100, startPercent)),
-        end: Math.max(0, Math.min(100, endPercent)),
+        start: zoomPercent.start,
+        end: zoomPercent.end,
       })
     }
   })
@@ -130,106 +77,81 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
     const samples = props.samples || []
     if (samples.length === 0) {
       instance.clear()
+      setPrevSamples(null)
       return
     }
 
-    const times = samples.map((s) => s.timeMs)
-    const xMinRaw = Math.min(...times)
-    const xMaxRaw = Math.max(...times)
-    const xSpan = xMaxRaw - xMinRaw || 1
-    const xPadding = xSpan * 0.02
-    const xMin = xMinRaw - xPadding
-    const xMax = xMaxRaw + xPadding
+    // Check if samples changed (new file loaded)
+    const samplesChanged = prevSamples() !== samples
+    if (samplesChanged) {
+      setPrevSamples(samples)
+    }
 
-    const series: echarts.SeriesOption[] = []
-    const yAxes: echarts.YAXisComponentOption[] = []
+    // Calculate time axis range
+    const timeRange = calculateTimeRange(samples)
+    if (!timeRange) return
 
-    const seriesConfig: Array<{
-      key: keyof SamplePoint
-      displayName: string
-      color: string
-      accessor: (s: SamplePoint) => number | null | undefined
-    }> = [
-      { key: 'accelG', displayName: 'Accel (G)', color: '#2563eb', accessor: (s) => s.accelG },
-      {
-        key: 'accelFiltered',
-        displayName: 'Accel filtered (G)',
-        color: '#0ea5e9',
-        accessor: (s) => s.accelFiltered ?? null,
-      },
-      { key: 'speed', displayName: 'Speed', color: '#16a34a', accessor: (s) => s.speed ?? null },
-      { key: 'pos', displayName: 'Position', color: '#a855f7', accessor: (s) => s.pos ?? null },
-      { key: 'jerk', displayName: 'Jerk', color: '#f97316', accessor: (s) => s.jerk ?? null },
-    ]
+    const axisRange = addPadding(timeRange)
 
-    // Build visible series with their calculated ranges
+    // Build visible series
     const visibleSeriesInfo: Array<{
-      config: typeof seriesConfig[0]
-      min: number
-      max: number
+      config: typeof SERIES_CONFIG[0]
+      range: { min: number; max: number }
       yAxisIndex: number
     }> = []
 
     let yAxisIndex = 0
-    for (const config of seriesConfig) {
+    for (const config of SERIES_CONFIG) {
       if (!props.visibleSeries[config.key as string]) continue
 
-      const values: number[] = []
-      for (const s of samples) {
-        const v = config.accessor(s)
-        if (v != null && Number.isFinite(v)) values.push(v)
-      }
-      if (values.length === 0) continue
-
-      const min = Math.min(...values)
-      const max = Math.max(...values)
+      const range = calculateSeriesRange(samples, config.accessor)
+      if (!range) continue
 
       visibleSeriesInfo.push({
         config,
-        min,
-        max,
+        range,
         yAxisIndex: yAxisIndex++,
       })
     }
 
-    // If no series are visible, clear the chart
-    if (visibleSeriesInfo.length === 0) {
-      instance.clear()
-      return
-    }
+    // Build Y-axes (even if no series visible, to preserve chart structure)
+    const yAxes: echarts.YAXisComponentOption[] =
+      visibleSeriesInfo.length > 0
+        ? visibleSeriesInfo.map((info) => {
+            const padding = (info.range.max - info.range.min) * 0.05
+            return {
+              type: 'value',
+              show: false,
+              min: info.range.min - padding,
+              max: info.range.max + padding,
+            }
+          })
+        : [
+            {
+              type: 'value',
+              show: false,
+            },
+          ]
 
-    // Create hidden Y-axes, each scaled to its series range
-    for (const info of visibleSeriesInfo) {
-      const range = info.max - info.min
-      const padding = range * 0.05
-
-      yAxes.push({
-        type: 'value',
-        show: false, // Hide the axis completely
-        min: info.min - padding,
-        max: info.max + padding,
-      })
-
-      // Add series bound to this Y-axis
-      series.push({
-        name: info.config.displayName,
-        type: 'line',
-        yAxisIndex: info.yAxisIndex,
-        showSymbol: false,
-        smooth: false,
-        lineStyle: {
-          width: 2,
-          color: info.config.color,
-        },
-        itemStyle: {
-          color: info.config.color, // Ensures tooltip marker uses the same color
-        },
-        data: samples.map((s) => {
-          const v = info.config.accessor(s)
-          return [s.timeMs, v != null && Number.isFinite(v) ? v : null]
-        }),
-      })
-    }
+    // Build series (empty array if none visible)
+    const series: echarts.SeriesOption[] = visibleSeriesInfo.map((info) => ({
+      name: info.config.displayName,
+      type: 'line',
+      yAxisIndex: info.yAxisIndex,
+      showSymbol: false,
+      smooth: false,
+      lineStyle: {
+        width: 2,
+        color: info.config.color,
+      },
+      itemStyle: {
+        color: info.config.color,
+      },
+      data: samples.map((s) => {
+        const v = info.config.accessor(s)
+        return [s.timeMs, v != null && Number.isFinite(v) ? v : null]
+      }),
+    }))
 
     const option: echarts.EChartsOption = {
       animation: false,
@@ -254,27 +176,26 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
         name: 'Time (ms)',
         nameLocation: 'middle',
         nameGap: 30,
-        min: xMin,
-        max: xMax,
+        min: axisRange.min,
+        max: axisRange.max,
       },
       yAxis: yAxes,
-      dataZoom: [
-        {
-          type: 'inside',
-          xAxisIndex: 0,
-          filterMode: 'none',
-        },
+      series,
+    }
+
+    // Only set dataZoom when samples change (new file loaded)
+    // This preserves zoom state when just toggling series visibility
+    if (samplesChanged) {
+      option.dataZoom = [
         {
           type: 'slider',
           xAxisIndex: 0,
           filterMode: 'none',
           height: 25,
         },
-      ],
-      series,
+      ]
     }
 
-    // Use replaceMerge to only update series and yAxis, preserving dataZoom state
     instance.setOption(option, { replaceMerge: ['series', 'yAxis'] })
     instance.resize()
   })
