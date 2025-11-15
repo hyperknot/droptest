@@ -101,18 +101,17 @@ export const AppUI: Component = () => {
 
   const [filterConfig, setFilterConfig] = createSignal<FilterConfig>(DEFAULT_FILTER_CONFIG)
 
-  // Default visible series
   const [visibleSeries, setVisibleSeries] = createSignal<Record<string, boolean>>({
     accelG: true,
     accelFactoryFiltered: true,
 
-    accelFiltered: true, // SG main
-    accelSGFull: false, // SG strong
+    accelFiltered: true,
+    accelSGFull: false,
     accelMA9: false,
 
-    accelLPEnvLight: false, // Butterworth LP #1
-    accelLPEnvMedium: false, // Butterworth LP #2
-    accelLPEnvStrong: false, // Notch / band-stop
+    accelLPEnvLight: false,
+    accelLPEnvMedium: false,
+    accelLPEnvStrong: false,
 
     accelCFC60: false,
     accelCFC180: false,
@@ -148,7 +147,7 @@ export const AppUI: Component = () => {
       const text = await file.text()
       const parsed = parseDropTestFile(text, file.name)
       setTestData(parsed)
-      setError('') // Clear any previous errors
+      setError('')
     } catch (err) {
       setError(`Error parsing file: ${err}`)
       console.error(err)
@@ -177,7 +176,6 @@ export const AppUI: Component = () => {
     setRangeCommand({ type: 'firstHit' })
   }
 
-  // Recompute filtered series whenever data or filter configuration changes
   createEffect(() => {
     const data = testData()
     const cfg = filterConfig()
@@ -189,7 +187,6 @@ export const AppUI: Component = () => {
 
     const samples: SamplePoint[] = data.samples.map((s) => ({ ...s }))
 
-    // Reset filtered series to null before applying
     for (const s of samples) {
       s.accelFiltered = null
       s.accelSGFull = null
@@ -201,7 +198,6 @@ export const AppUI: Component = () => {
       s.accelLPEnvStrong = null
     }
 
-    // Savitzky–Golay main
     if (cfg.sg.enabled) {
       const win = sanitizeOddWindow(cfg.sg.windowSize, samples.length)
       const poly = sanitizePolynomial(cfg.sg.polynomial)
@@ -217,7 +213,6 @@ export const AppUI: Component = () => {
       }
     }
 
-    // Savitzky–Golay strong
     if (cfg.sgFull.enabled) {
       const win = sanitizeOddWindow(cfg.sgFull.windowSize, samples.length)
       const poly = sanitizePolynomial(cfg.sgFull.polynomial)
@@ -233,7 +228,6 @@ export const AppUI: Component = () => {
       }
     }
 
-    // Moving average
     if (cfg.movingAverage.enabled) {
       const win = sanitizeOddWindow(cfg.movingAverage.windowSize, samples.length)
       if (win != null) {
@@ -248,7 +242,6 @@ export const AppUI: Component = () => {
       }
     }
 
-    // Butterworth low‑pass #1
     if (cfg.butterworth1.enabled) {
       try {
         const y = applyButterworthLowpassAccel(samples, cfg.butterworth1.cutoffHz, {
@@ -263,7 +256,6 @@ export const AppUI: Component = () => {
       }
     }
 
-    // Butterworth low‑pass #2
     if (cfg.butterworth2.enabled) {
       try {
         const y = applyButterworthLowpassAccel(samples, cfg.butterworth2.cutoffHz, {
@@ -278,7 +270,6 @@ export const AppUI: Component = () => {
       }
     }
 
-    // Notch / band‑stop
     if (cfg.notch.enabled) {
       try {
         const y = applyBandstopAccel(samples, cfg.notch.centerHz, cfg.notch.bandwidthHz, {
@@ -293,7 +284,6 @@ export const AppUI: Component = () => {
       }
     }
 
-    // CFC 60
     if (cfg.cfc60.enabled) {
       try {
         const { filtered } = applyCrashFilterCFCAccel(samples, cfg.cfc60.cfc, {
@@ -308,7 +298,6 @@ export const AppUI: Component = () => {
       }
     }
 
-    // CFC 180
     if (cfg.cfc180.enabled) {
       try {
         const { filtered } = applyCrashFilterCFCAccel(samples, cfg.cfc180.cfc, {
@@ -333,56 +322,64 @@ export const AppUI: Component = () => {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
     >
-      <div class="max-w-7xl mx-auto py-8 px-4 space-y-6">
-        <header class="space-y-2">
-          <h1 class="md:text-3xl text-xl font-bold tracking-tight">
-            Harness Drop Test Data Visualizer
-          </h1>
-          <p class="text-gray-600">
-            Visualize real-world drop test data from harness back protectors.
-          </p>
-          <p class="text-gray-600">
-            This is an{' '}
-            <a
-              href="https://github.com/hyperknot/droptest-viz"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="text-blue-600 hover:underline"
-            >
-              open source
-            </a>{' '}
-            project by Zsolt Ero.
-          </p>
-        </header>
+      {/* Landing page: centered introduction */}
+      <Show when={!hasData()}>
+        <div class="max-w-4xl mx-auto py-16 px-6 space-y-8">
+          <header class="space-y-4">
+            <h1 class="text-4xl font-bold tracking-tight">
+              Harness Drop Test Data Visualizer
+            </h1>
+            <p class="text-lg text-gray-600">
+              Visualize and analyze real-world drop test data from harness back protectors.
+            </p>
+            <p class="text-gray-600">
+              This is an{' '}
+              <a
+                href="https://github.com/hyperknot/droptest-viz"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-blue-600 hover:underline font-medium"
+              >
+                open source
+              </a>{' '}
+              project by Zsolt Ero.
+            </p>
+          </header>
 
-        <Show when={!hasData()}>
           <div
-            class={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
+            class={`border-2 border-dashed rounded-lg p-16 text-center transition-colors ${
               isDragging() ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-white'
             }`}
           >
-            <p class="text-lg mb-2">Drop a .csv drop test file here</p>
+            <p class="text-xl font-medium mb-3">Drop a CSV drop test file here</p>
             <p class="text-sm text-gray-500">
               Expected format: CSV with accel, time0, datetime columns
             </p>
           </div>
-        </Show>
 
-        <Show when={error()}>
-          <div class="text-red-600 bg-red-50 p-3 rounded border border-red-200">{error()}</div>
-        </Show>
+          <Show when={error()}>
+            <div class="text-red-600 bg-red-50 p-4 rounded border border-red-200">
+              {error()}
+            </div>
+          </Show>
+        </div>
+      </Show>
 
-        <Show when={hasData()}>
-          <div class="flex flex-col md:flex-row gap-4 items-start">
-            <section class="flex-1 min-w-0 bg-white rounded-xl shadow-sm border border-gray-200 py-3 px-4">
-              <AccelerationProfileChart
-                samples={displaySamples()}
-                visibleSeries={visibleSeries()}
-                rangeCommand={rangeCommand()}
-              />
-            </section>
+      {/* Fullscreen dense layout: graph + sidebar */}
+      <Show when={hasData()}>
+        <div class="h-screen flex overflow-hidden">
+          {/* Main chart area - takes all available space */}
+          <div class="flex-1">
+            <AccelerationProfileChart
+              samples={displaySamples()}
+              visibleSeries={visibleSeries()}
+              rangeCommand={rangeCommand()}
+            />
+          </div>
 
-            <div class="w-full md:w-96 lg:w-[420px] space-y-3 flex-shrink-0">
+          {/* Right sidebar - filter controls */}
+          <div class="w-80 bg-white border-l border-gray-200 flex flex-col overflow-hidden">
+            <div class="flex-1 overflow-y-auto p-2 space-y-2">
               <ControlPanel
                 samples={displaySamples()}
                 visibleSeries={visibleSeries()}
@@ -395,8 +392,8 @@ export const AppUI: Component = () => {
               <FileInfoPanel data={testData()!} />
             </div>
           </div>
-        </Show>
-      </div>
+        </div>
+      </Show>
     </div>
   )
 }
