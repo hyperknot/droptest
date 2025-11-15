@@ -1,13 +1,7 @@
 import * as echarts from 'echarts'
 import type { Component } from 'solid-js'
 import { createEffect, createSignal, onCleanup, onMount } from 'solid-js'
-
-interface SamplePoint {
-  t: number // seconds
-  aG: number // acceleration in G
-  v: number
-  x: number
-}
+import type { SamplePoint } from '../types'
 
 interface AccelerationProfileChartProps {
   samples: Array<SamplePoint>
@@ -28,7 +22,7 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
     const instance = chart()
     if (!instance) return
 
-    const data = (props.samples || []).map((p) => [p.t * 1000, p.aG])
+    const data = (props.samples || []).map((p) => [p.timeMs, p.accelG])
     const maxTimeMs = data.length ? data[data.length - 1][0] : 0
 
     // Find time ranges where acceleration exceeds thresholds
@@ -47,7 +41,7 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
 
     const option: echarts.EChartsOption = {
       animation: false,
-      grid: { left: 0, right: 0, top: 0, bottom: 0, outerBoundsContain: 'all' },
+      grid: { left: 0, right: 0, top: 0, bottom: 0, containLabel: true },
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'line' },

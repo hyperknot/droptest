@@ -1,99 +1,125 @@
 import type { Component } from 'solid-js'
-import { createMemo, createSignal } from 'solid-js'
+import { createSignal, Show } from 'solid-js'
 import { AccelerationProfileChart } from './components/AccelerationProfileChart'
-import { InputPanel } from './components/InputPanel'
+import { FileInfoPanel } from './components/FileInfo'
 import { StatsPanel } from './components/StatsPanel'
-import { SummaryPanel } from './components/SummaryPanel'
-import { computeProfile } from './lib/physics'
+import { calculateStatistics } from './lib/calculations'
+import { parseDropTestFile } from './lib/csv-parser'
+import type { DropTestData } from './types'
 
 export const AppUI: Component = () => {
-  const [impactSpeed, setImpactSpeed] = createSignal(5.7) // m/s
-  const [jerkG, setJerkG] = createSignal(1300) // G/s
-  const [maxG, setMaxG] = createSignal(42) // G
-  const [compressionFactor, setCompressionFactor] = createSignal(75) // %
+  const [testData, setTestData] = createSignal<DropTestData | null>(null)
+  const [error, setError] = createSignal<string>('')
+  const [isDragging, setIsDragging] = createSignal(false)
 
-  const result = createMemo(() =>
-    computeProfile({
-      v0: impactSpeed(),
-      jerkG: jerkG(),
-      maxG: maxG(),
-    }),
-  )
+  const handleDrop = async (e: DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    setError('')
 
-  const getProfileShapeDescription = () => {
-    const type = result().profileType
-    if (type === 'triangular') {
-      return 'linear up, linear down (no constant phase)'
+    const files = Array.from(e.dataTransfer?.files || [])
+    if (files.length === 0) {
+      setError('No file dropped')
+      return
     }
-    if (type === 'trapezoidal') {
-      return 'linear up, constant, linear down'
+
+    const file = files[0]
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setError('Please drop a .csv file')
+      return
     }
-    return ''
+
+    try {
+      const text = await file.text()
+      const parsed = parseDropTestFile(text, file.name)
+      const stats = calculateStatistics(parsed.samples)
+
+      setTestData({
+        ...parsed,
+        statistics: stats,
+      })
+    } catch (err) {
+      setError(`Error parsing file: ${err}`)
+      console.error(err)
+    }
   }
 
+  const handleDragOver = (e: DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const hasData = () => testData() !== null
+
   return (
-    <div class="min-h-screen bg-slate-50 text-gray-900 overflow-x-hidden">
+    <div
+      class="min-h-screen bg-slate-50 text-gray-900"
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+    >
       <div class="max-w-5xl mx-auto py-8 px-4 space-y-6">
         <header class="space-y-2">
           <h1 class="md:text-3xl text-xl font-bold tracking-tight">
-            Paragliding Harness Back Protector Visualizer
+            Harness Drop Test Data Visualizer
           </h1>
           <p class="text-gray-600">
-            Visualize jerk and G limited paragliding harness back protectors.
+            Visualize real-world drop test data from harness back protectors.
           </p>
           <p class="text-gray-600">
             This is an{' '}
             <a
-              href="https://github.com/hyperknot/harnessvis"
+              href="https://github.com/hyperknot/droptest-viz"
               target="_blank"
               rel="noopener noreferrer"
               class="text-blue-600 hover:underline"
             >
               open source
             </a>{' '}
-            project by Zsolt Ero. Physics is in{' '}
-            <a
-              href="https://github.com/hyperknot/harnessvis/blob/main/fe/src/lib/physics.ts"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="text-blue-600 hover:underline"
-            >
-              this file
-            </a>
-            .
+            project by Zsolt Ero.
           </p>
         </header>
 
-        {/* Content layout */}
-        <div class="space-y-3">
-          {/* Full-width chart on top */}
-          <section class="bg-white rounded-xl shadow-sm border border-gray-200 py-2 px-3 space-y-3">
-            <div>
-              <h2 class="text-lg font-semibold">Acceleration profile</h2>
-              <p class="text-xs text-gray-500">{getProfileShapeDescription()}</p>
-            </div>
-            <AccelerationProfileChart samples={result().samples} />
-          </section>
-
-          {/* Full-width thickness panel */}
-          <SummaryPanel result={result()} compressionFactor={compressionFactor()} />
-
-          <div class="grid gap-3 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] items-start">
-            <InputPanel
-              impactSpeed={impactSpeed()}
-              jerkG={jerkG()}
-              maxG={maxG()}
-              compressionFactor={compressionFactor()}
-              onImpactSpeedChange={setImpactSpeed}
-              onJerkGChange={setJerkG}
-              onMaxGChange={setMaxG}
-              onCompressionFactorChange={setCompressionFactor}
-              errorMessage={!result().ok ? result().reason : undefined}
-            />
-
-            <StatsPanel result={result()} />
+        <Show when={!hasData()}>
+          <div
+            class={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
+              isDragging() ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-white'
+            }`}
+          >
+            <p class="text-lg mb-2">Drop a .csv drop test file here</p>
+            <p class="text-sm text-gray-500">
+              Expected format: CSV with accel, time0, datetime columns
+            </p>
           </div>
-        </div>
+        </Show>
+
+        <Show when={error()}>
+          <div class="text-red-600 bg-red-50 p-3 rounded border border-red-200">{error()}</div>
+        </Show>
+
+        <Show when={hasData()}>
+          <div class="space-y-3">
+            {/* Chart */}
+            <section class="bg-white rounded-xl shadow-sm border border-gray-200 py-2 px-3 space-y-3">
+              <div>
+                <h2 class="text-lg font-semibold">Acceleration profile</h2>
+                <p class="text-xs text-gray-500">Recorded drop test data</p>
+              </div>
+              <AccelerationProfileChart samples={testData()!.samples} />
+            </section>
+
+            {/* File info and stats side by side */}
+            <div class="grid gap-3 md:grid-cols-2 items-start">
+              <FileInfoPanel data={testData()!} />
+              <StatsPanel statistics={testData()!.statistics} />
+            </div>
+          </div>
+        </Show>
       </div>
     </div>
   )

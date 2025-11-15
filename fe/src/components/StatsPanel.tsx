@@ -1,52 +1,31 @@
 import type { Component } from 'solid-js'
-import type { PhysicsResult } from '../types/physics'
+import type { Statistics } from '../types'
 
 interface StatsPanelProps {
-  result: PhysicsResult
-  class?: string
+  statistics: Statistics
 }
 
 export const StatsPanel: Component<StatsPanelProps> = (props) => {
-  // Check if values exceed proposed EN limits
-  const isOver38GLimit = () => props.result.timeOver38G >= 0.007 // 7 ms
-  const isOver20GLimit = () => props.result.timeOver20G >= 0.025 // 25 ms
-
+  const isOver38GLimit = () => props.statistics.timeOver38G >= 0.007 // 7 ms
+  const isOver20GLimit = () => props.statistics.timeOver20G >= 0.025 // 25 ms
   const isOverAnyLimit = () => isOver38GLimit() || isOver20GLimit()
 
   return (
-    <section
-      class={`bg-white rounded-xl shadow-sm border border-gray-200 py-2 px-3 space-y-4 ${props.class || ''}`}
-    >
-      <h2 class="text-lg font-semibold">Profile summary</h2>
+    <section class="bg-white rounded-xl shadow-sm border border-gray-200 py-2 px-3 space-y-4">
+      <h2 class="text-lg font-semibold">Statistics</h2>
 
       <div class="grid gap-3 text-sm">
         <div class="flex justify-between">
-          <span class="text-gray-600">Max G limit reached?</span>
-          <span class="font-semibold">{props.result.gLimitReached ? 'Yes' : 'No'}</span>
-        </div>
-
-        <div class="flex justify-between">
-          <span class="text-gray-600">Time to peak G (each side):</span>
-          <span class="font-semibold">
-            {props.result.t1 ? (props.result.t1 * 1000).toFixed(2) : '—'} ms
-          </span>
-        </div>
-
-        <div class="flex justify-between">
-          <span class="text-gray-600">Constant-G phase:</span>
-          <span class="font-semibold">
-            {props.result.t2 ? (props.result.t2 * 1000).toFixed(2) : '0.00'} ms
-          </span>
+          <span class="text-gray-600">Peak acceleration:</span>
+          <span class="font-semibold">{props.statistics.peakG.toFixed(2)} G</span>
         </div>
 
         <div class="flex justify-between">
           <span class="text-gray-600">Total stop time:</span>
-          <span class="font-semibold">
-            {props.result.totalTime ? (props.result.totalTime * 1000).toFixed(2) : '—'} ms
-          </span>
+          <span class="font-semibold">{props.statistics.totalTime.toFixed(2)} ms</span>
         </div>
 
-        {/* Time over thresholds - read-only measurements */}
+        {/* Time over thresholds */}
         <div class="py-2 border-t border-gray-200 mt-2 space-y-2">
           <div class="flex justify-between">
             <span class="text-gray-600">Time over 38 G:</span>
@@ -56,7 +35,7 @@ export const StatsPanel: Component<StatsPanelProps> = (props) => {
                 'text-red-600': isOver38GLimit(),
               }}
             >
-              {props.result.timeOver38G ? (props.result.timeOver38G * 1000).toFixed(2) : '0.00'} ms
+              {props.statistics.timeOver38G.toFixed(2)} ms
             </span>
           </div>
           <div class="flex justify-between">
@@ -67,7 +46,7 @@ export const StatsPanel: Component<StatsPanelProps> = (props) => {
                 'text-red-600': isOver20GLimit(),
               }}
             >
-              {props.result.timeOver20G ? (props.result.timeOver20G * 1000).toFixed(2) : '0.00'} ms
+              {props.statistics.timeOver20G.toFixed(2)} ms
             </span>
           </div>
         </div>
@@ -83,11 +62,11 @@ export const StatsPanel: Component<StatsPanelProps> = (props) => {
         <div class="py-2 border-t border-gray-200 mt-2 space-y-2">
           <div class="flex justify-between">
             <span class="text-gray-600">HIC15:</span>
-            <span class="font-semibold">{props.result.hic15.toFixed(0)}</span>
+            <span class="font-semibold">{props.statistics.hic15.toFixed(0)}</span>
           </div>
           <div class="flex justify-between">
             <span class="text-gray-600">HIC36:</span>
-            <span class="font-semibold">{props.result.hic36.toFixed(0)}</span>
+            <span class="font-semibold">{props.statistics.hic36.toFixed(0)}</span>
           </div>
         </div>
       </div>
