@@ -1,7 +1,7 @@
 import type { Component } from 'solid-js'
 import { For } from 'solid-js'
 import type { SamplePoint } from '../types'
-import { SERIES_CONFIG, calculateSeriesRange } from '../lib/calculations'
+import { BASE_SERIES_CONFIG, calculateSeriesRange } from '../lib/calculations'
 
 interface SeriesTogglePanelProps {
   samples: Array<SamplePoint>
@@ -18,10 +18,10 @@ export const SeriesTogglePanel: Component<SeriesTogglePanelProps> = (props) => {
   }
 
   return (
-    <section class="bg-white rounded border border-gray-200 p-2 space-y-3 text-sm">
-      <h2 class="font-semibold text-base">Series visibility</h2>
+    <section class="bg-white rounded border border-gray-200 p-2 space-y-2 text-sm">
+      <h2 class="font-semibold text-base">Series</h2>
       <div class="space-y-1">
-        <For each={SERIES_CONFIG}>
+        <For each={BASE_SERIES_CONFIG}>
           {(config) => {
             const range = calculateSeriesRange(props.samples, config.accessor)
             return (
@@ -43,7 +43,7 @@ export const SeriesTogglePanel: Component<SeriesTogglePanelProps> = (props) => {
                   <div class="text-[10px] text-gray-500 mt-0.5">
                     {range
                       ? `Min: ${range.min.toFixed(3)} | Max: ${range.max.toFixed(3)}`
-                      : 'No samples yet'}
+                      : 'No data'}
                   </div>
                 </div>
               </label>

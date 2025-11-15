@@ -7,7 +7,6 @@ function parseOptionalNumber(value: string | undefined): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-// Parse "YYYY-MM-DD hh:mm:ss.ffffff" -> ms since epoch (UTC)
 function parseLabDatetimeToMs(value: string | undefined): number | null {
   if (!value) return null
   const trimmed = value.trim()
@@ -54,14 +53,10 @@ function parseLabDatetimeToMs(value: string | undefined): number | null {
   return Date.UTC(year, month - 1, day, hour, minute, second, millis)
 }
 
-/**
- * Detect the origin point by finding when acceleration first goes
- * below -0.5 G and stays there for 100ms, then calculating back 200ms
- */
 function detectOriginTime(samples: Array<SamplePoint>): number {
-  const threshold = -0.5 // G
-  const durationMs = 100 // ms - must stay below threshold for this long
-  const lookbackMs = 200 // ms - origin is this far before trigger point
+  const threshold = -0.5
+  const durationMs = 100
+  const lookbackMs = 200
 
   for (let i = 0; i < samples.length; i++) {
     if (samples[i].accelG >= threshold) {
@@ -91,23 +86,10 @@ function detectOriginTime(samples: Array<SamplePoint>): number {
 
     if (staysBelow) {
       const originTime = triggerTime - lookbackMs
-      console.log(
-        'OriginDetection ' +
-          JSON.stringify(
-            {
-              triggerTime,
-              originTime: Math.max(0, originTime),
-              triggerAccel: samples[i].accelG,
-            },
-            null,
-            2,
-          ),
-      )
       return Math.max(0, originTime)
     }
   }
 
-  console.log(`OriginDetection ${JSON.stringify({ originTime: 0 }, null, 2)}`)
   return 0
 }
 
@@ -200,28 +182,17 @@ export function parseDropTestFile(
     speed: raw.speed,
     pos: raw.pos,
     jerk: raw.jerk,
-
-    accelFiltered: null,
     accelFactoryFiltered: raw.accelFiltered,
-
-    accelSGShort: null,
-    accelSGFull: null,
-    accelMA9: null,
-
-    accelCFC60: null,
-    accelCFC180: null,
-
-    accelLPEnvLight: null,
-    accelLPEnvMedium: null,
-    accelLPEnvStrong: null,
-
     accelFromSpeed: null,
     accelFromPos: null,
+    accelSG: null,
+    accelMA: null,
+    accelButterworth: null,
+    accelNotch: null,
+    accelCFC: null,
   }))
 
-  // Detect origin point based on acceleration threshold (on raw accelG)
   const originTimeMs = detectOriginTime(samples)
-
   const filteredSamples = samples.filter((s) => s.timeMs >= originTimeMs)
 
   const adjustedSamples: Array<SamplePoint> = filteredSamples.map((s) => ({
@@ -229,7 +200,6 @@ export function parseDropTestFile(
     timeMs: s.timeMs - originTimeMs,
   }))
 
-  // Compute derived acceleration from speed and position
   if (adjustedSamples.length >= 5) {
     const accelFromSpeed = computeAccelFromSpeed(adjustedSamples)
     const accelFromPos = computeAccelFromPos(adjustedSamples)
@@ -246,21 +216,6 @@ export function parseDropTestFile(
       metadata.date = datePart
     }
   }
-
-  console.log(
-    'TimeRangeAfterOrigin ' +
-      JSON.stringify(
-        {
-          originalSamples: samples.length,
-          filteredSamples: adjustedSamples.length,
-          originTimeMs,
-          newDuration:
-            adjustedSamples.length > 0 ? adjustedSamples[adjustedSamples.length - 1].timeMs : 0,
-        },
-        null,
-        2,
-      ),
-  )
 
   return {
     filename,

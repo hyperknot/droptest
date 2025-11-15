@@ -1,9 +1,10 @@
 import * as echarts from 'echarts'
 import type { Component } from 'solid-js'
 import { createEffect, createSignal, onCleanup, onMount } from 'solid-js'
-import type { RangeCommand, SamplePoint } from '../types'
+import type { FilterConfig, RangeCommand, SamplePoint } from '../types'
 import {
-  SERIES_CONFIG,
+  BASE_SERIES_CONFIG,
+  FILTER_SERIES_CONFIG,
   type SeriesConfig,
   calculateSeriesRange,
   calculateTimeRange,
@@ -15,6 +16,7 @@ import {
 interface AccelerationProfileChartProps {
   samples: Array<SamplePoint>
   visibleSeries: Record<string, boolean>
+  filterConfig: FilterConfig
   rangeCommand: RangeCommand
 }
 
@@ -30,7 +32,6 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
     }
   })
 
-  // Handle range commands
   createEffect(() => {
     const cmd = props.rangeCommand
     const instance = chart()
@@ -45,7 +46,6 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
         start: 0,
         end: 100,
       })
-      console.log('Reset to full range')
     } else if (cmd.type === 'firstHit') {
       const hitRange = findFirstHitRange(samples)
       if (!hitRange) return
@@ -55,12 +55,6 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
 
       const axisRange = addPadding(timeRange)
       const zoomPercent = calculateZoomPercent(hitRange, axisRange)
-
-      console.log('Zooming to first hit range:', {
-        hitRange,
-        axisRange,
-        zoomPercent,
-      })
 
       instance.dispatchAction({
         type: 'dataZoom',
@@ -81,37 +75,47 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       return
     }
 
-    // Check if samples changed (new file loaded)
     const samplesChanged = prevSamples() !== samples
     if (samplesChanged) {
       setPrevSamples(samples)
     }
 
-    // Calculate time axis range
     const timeRange = calculateTimeRange(samples)
     if (!timeRange) return
 
     const axisRange = addPadding(timeRange)
 
-    // Build visible series infos
     const visibleSeriesInfo: Array<{
       config: SeriesConfig
       range: { min: number; max: number }
     }> = []
 
-    for (const config of SERIES_CONFIG) {
+    for (const config of BASE_SERIES_CONFIG) {
       if (!props.visibleSeries[config.key as string]) continue
 
       const range = calculateSeriesRange(samples, config.accessor)
       if (!range) continue
 
-      visibleSeriesInfo.push({
-        config,
-        range,
-      })
+      visibleSeriesInfo.push({ config, range })
     }
 
-    // Group ranges so that all accel series share the same Y axis
+    const filterMap: Record<string, boolean> = {
+      accelSG: props.filterConfig.savitzkyGolay.enabled,
+      accelMA: props.filterConfig.movingAverage.enabled,
+      accelButterworth: props.filterConfig.butterworth.enabled,
+      accelNotch: props.filterConfig.notch.enabled,
+      accelCFC: props.filterConfig.cfc.enabled,
+    }
+
+    for (const config of FILTER_SERIES_CONFIG) {
+      if (!filterMap[config.key as string]) continue
+
+      const range = calculateSeriesRange(samples, config.accessor)
+      if (!range) continue
+
+      visibleSeriesInfo.push({ config, range })
+    }
+
     type GroupRange = { min: number; max: number }
     const groupRanges = new Map<SeriesConfig['group'], GroupRange>()
 
@@ -126,7 +130,7 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       }
     }
 
-    const groupOrder: Array<SeriesConfig['group']> = ['accel', 'speed', 'position', 'jerk', 'other']
+    const groupOrder: Array<SeriesConfig['group']> = ['accel', 'speed', 'position', 'jerk']
 
     const orderedGroups = Array.from(groupRanges.entries()).sort(
       (a, b) => groupOrder.indexOf(a[0]) - groupOrder.indexOf(b[0]),
@@ -154,7 +158,6 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       })
     }
 
-    // Build series (empty array if none visible)
     const series: echarts.SeriesOption[] = visibleSeriesInfo.map((info) => {
       const yAxisIndex = groupAxisIndex.get(info.config.group) ?? 0
       return {
@@ -207,8 +210,6 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       series,
     }
 
-    // Only set dataZoom when samples change (new file loaded)
-    // This preserves zoom state when just toggling series visibility
     if (samplesChanged) {
       option.dataZoom = [
         {

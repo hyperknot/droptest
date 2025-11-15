@@ -1,29 +1,18 @@
 import type { FilterConfig } from '../types'
 
 export const DEFAULT_FILTER_CONFIG: FilterConfig = {
-  sg: {
+  savitzkyGolay: {
     enabled: true,
     windowSize: 17,
-    polynomial: 3,
-  },
-  sgFull: {
-    enabled: false,
-    windowSize: 33,
     polynomial: 3,
   },
   movingAverage: {
     enabled: false,
     windowSize: 9,
   },
-  butterworth1: {
+  butterworth: {
     enabled: false,
-    cutoffHz: 100,
-    order: 4,
-    zeroPhase: true,
-  },
-  butterworth2: {
-    enabled: false,
-    cutoffHz: 300,
+    cutoffHz: 50,
     order: 4,
     zeroPhase: true,
   },
@@ -34,15 +23,9 @@ export const DEFAULT_FILTER_CONFIG: FilterConfig = {
     order: 2,
     zeroPhase: true,
   },
-  cfc60: {
+  cfc: {
     enabled: false,
     cfc: 60,
-    order: 4,
-    zeroPhase: true,
-  },
-  cfc180: {
-    enabled: false,
-    cfc: 180,
     order: 4,
     zeroPhase: true,
   },

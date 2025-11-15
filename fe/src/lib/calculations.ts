@@ -5,114 +5,96 @@ export interface SeriesConfig {
   displayName: string
   color: string
   accessor: (s: SamplePoint) => number | null | undefined
-  group: 'accel' | 'speed' | 'position' | 'jerk' | 'other'
+  group: 'accel' | 'speed' | 'position' | 'jerk'
 }
 
-export const SERIES_CONFIG: Array<SeriesConfig> = [
+export const BASE_SERIES_CONFIG: Array<SeriesConfig> = [
   {
     key: 'accelG',
-    displayName: 'Accel raw (G)',
+    displayName: 'Accel raw',
     color: '#2563eb',
     accessor: (s) => s.accelG,
     group: 'accel',
   },
   {
     key: 'accelFactoryFiltered',
-    displayName: 'Accel factory filtered (G)',
+    displayName: 'Accel factory',
     color: '#6366f1',
-    accessor: (s) => s.accelFactoryFiltered ?? null,
-    group: 'accel',
-  },
-  {
-    key: 'accelFiltered',
-    displayName: 'Accel SG main (G)',
-    color: '#0ea5e9',
-    accessor: (s) => s.accelFiltered ?? null,
-    group: 'accel',
-  },
-  {
-    key: 'accelSGFull',
-    displayName: 'Accel SG strong (G)',
-    color: '#14b8a6',
-    accessor: (s) => s.accelSGFull ?? null,
-    group: 'accel',
-  },
-  {
-    key: 'accelMA9',
-    displayName: 'Accel moving avg (G)',
-    color: '#facc15',
-    accessor: (s) => s.accelMA9 ?? null,
-    group: 'accel',
-  },
-  {
-    key: 'accelLPEnvLight',
-    displayName: 'Accel Butterworth LP #1 (G)',
-    color: '#0f766e',
-    accessor: (s) => s.accelLPEnvLight ?? null,
-    group: 'accel',
-  },
-  {
-    key: 'accelLPEnvMedium',
-    displayName: 'Accel Butterworth LP #2 (G)',
-    color: '#10b981',
-    accessor: (s) => s.accelLPEnvMedium ?? null,
-    group: 'accel',
-  },
-  {
-    key: 'accelLPEnvStrong',
-    displayName: 'Accel Notch/Band-stop (G)',
-    color: '#065f46',
-    accessor: (s) => s.accelLPEnvStrong ?? null,
-    group: 'accel',
-  },
-  {
-    key: 'accelCFC60',
-    displayName: 'Accel CFC 60 (G)',
-    color: '#ef4444',
-    accessor: (s) => s.accelCFC60 ?? null,
-    group: 'accel',
-  },
-  {
-    key: 'accelCFC180',
-    displayName: 'Accel CFC 180 (G)',
-    color: '#b91c1c',
-    accessor: (s) => s.accelCFC180 ?? null,
-    group: 'accel',
-  },
-  {
-    key: 'accelFromSpeed',
-    displayName: 'Accel from speed (G)',
-    color: '#db2777',
-    accessor: (s) => s.accelFromSpeed ?? null,
-    group: 'accel',
-  },
-  {
-    key: 'accelFromPos',
-    displayName: 'Accel from position (G)',
-    color: '#c026d3',
-    accessor: (s) => s.accelFromPos ?? null,
+    accessor: (s) => s.accelFactoryFiltered,
     group: 'accel',
   },
   {
     key: 'speed',
     displayName: 'Speed',
     color: '#16a34a',
-    accessor: (s) => s.speed ?? null,
+    accessor: (s) => s.speed,
     group: 'speed',
   },
   {
     key: 'pos',
     displayName: 'Position',
     color: '#a855f7',
-    accessor: (s) => s.pos ?? null,
+    accessor: (s) => s.pos,
     group: 'position',
   },
   {
     key: 'jerk',
     displayName: 'Jerk',
     color: '#f97316',
-    accessor: (s) => s.jerk ?? null,
+    accessor: (s) => s.jerk,
     group: 'jerk',
+  },
+  {
+    key: 'accelFromSpeed',
+    displayName: 'Accel from speed',
+    color: '#db2777',
+    accessor: (s) => s.accelFromSpeed,
+    group: 'accel',
+  },
+  {
+    key: 'accelFromPos',
+    displayName: 'Accel from position',
+    color: '#c026d3',
+    accessor: (s) => s.accelFromPos,
+    group: 'accel',
+  },
+]
+
+export const FILTER_SERIES_CONFIG: Array<SeriesConfig> = [
+  {
+    key: 'accelSG',
+    displayName: 'Savitzky-Golay',
+    color: '#0ea5e9',
+    accessor: (s) => s.accelSG,
+    group: 'accel',
+  },
+  {
+    key: 'accelMA',
+    displayName: 'Moving average',
+    color: '#facc15',
+    accessor: (s) => s.accelMA,
+    group: 'accel',
+  },
+  {
+    key: 'accelButterworth',
+    displayName: 'Butterworth LP',
+    color: '#10b981',
+    accessor: (s) => s.accelButterworth,
+    group: 'accel',
+  },
+  {
+    key: 'accelNotch',
+    displayName: 'Band-stop',
+    color: '#065f46',
+    accessor: (s) => s.accelNotch,
+    group: 'accel',
+  },
+  {
+    key: 'accelCFC',
+    displayName: 'CFC',
+    color: '#ef4444',
+    accessor: (s) => s.accelCFC,
+    group: 'accel',
   },
 ]
 
@@ -170,9 +152,6 @@ export interface FirstHitRange {
   end: number
 }
 
-/**
- * Simplified first-hit range detector: find first peak above 10 G, add padding.
- */
 export function findFirstHitRange(samples: Array<SamplePoint>): FirstHitRange | null {
   if (samples.length === 0) return null
 
@@ -187,31 +166,11 @@ export function findFirstHitRange(samples: Array<SamplePoint>): FirstHitRange | 
     }
   }
 
-  if (peakIdx === -1) {
-    console.log(
-      `FirstHitRange ${JSON.stringify({ message: 'No significant peak found' }, null, 2)}`,
-    )
-    return null
-  }
+  if (peakIdx === -1) return null
 
   const peakTimeMs = samples[peakIdx].timeMs
-
   const startTimePadded = Math.max(0, peakTimeMs - 50)
   const endTimePadded = peakTimeMs + 100
-
-  console.log(
-    'FirstHitRange ' +
-      JSON.stringify(
-        {
-          peakIdx,
-          peakTimeMs,
-          paddedStartTime: startTimePadded,
-          paddedEndTime: endTimePadded,
-        },
-        null,
-        2,
-      ),
-  )
 
   return {
     start: startTimePadded,

@@ -2,7 +2,7 @@ import type { Component } from 'solid-js'
 import { createSignal } from 'solid-js'
 import type { DropTestData, FilterConfig, SamplePoint, RangeCommand } from '../types'
 import { AccelerationProfileChart } from './AccelerationProfileChart'
-import { ControlPanel } from './ControlPanel'
+import { FilterPanel } from './FilterPanel'
 import { FileInfoPanel } from './FileInfo'
 import { SeriesTogglePanel } from './SeriesTogglePanel'
 
@@ -17,19 +17,11 @@ export const MainLayout: Component<MainLayoutProps> = (props) => {
   const [visibleSeries, setVisibleSeries] = createSignal<Record<string, boolean>>({
     accelG: true,
     accelFactoryFiltered: true,
-    accelFiltered: true,
-    accelSGFull: false,
-    accelMA9: false,
-    accelLPEnvLight: false,
-    accelLPEnvMedium: false,
-    accelLPEnvStrong: false,
-    accelCFC60: false,
-    accelCFC180: false,
+    speed: false,
+    pos: false,
+    jerk: false,
     accelFromSpeed: false,
     accelFromPos: false,
-    speed: true,
-    pos: true,
-    jerk: true,
   })
 
   const [rangeCommand, setRangeCommand] = createSignal<RangeCommand>(null)
@@ -44,29 +36,45 @@ export const MainLayout: Component<MainLayoutProps> = (props) => {
 
   return (
     <div class="h-screen flex overflow-hidden">
-      {/* Main chart area */}
       <div class="flex-1">
         <AccelerationProfileChart
           samples={props.displaySamples}
           visibleSeries={visibleSeries()}
+          filterConfig={props.filterConfig}
           rangeCommand={rangeCommand()}
         />
       </div>
 
-      {/* Right sidebar */}
       <div class="w-80 bg-white border-l border-gray-200 flex flex-col overflow-hidden">
         <div class="flex-1 overflow-y-auto p-2 space-y-2">
+          <section class="bg-white rounded border border-gray-200 p-2">
+            <div class="flex gap-1">
+              <button
+                onClick={handleFullRange}
+                class="flex-1 px-2 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs font-medium"
+              >
+                Full range
+              </button>
+              <button
+                onClick={handleFirstHit}
+                class="flex-1 px-2 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-xs font-medium"
+              >
+                First hit
+              </button>
+            </div>
+          </section>
+
           <SeriesTogglePanel
             samples={props.displaySamples}
             visibleSeries={visibleSeries()}
             setVisibleSeries={setVisibleSeries}
           />
-          <ControlPanel
+
+          <FilterPanel
             filterConfig={props.filterConfig}
             setFilterConfig={props.setFilterConfig}
-            onFullRange={handleFullRange}
-            onFirstHit={handleFirstHit}
           />
+
           <FileInfoPanel data={props.testData} />
         </div>
       </div>

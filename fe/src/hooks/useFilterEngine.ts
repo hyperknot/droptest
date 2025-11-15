@@ -26,96 +26,51 @@ export function useFilterEngine(
 
     const samples: Array<SamplePoint> = data.samples.map((s) => ({ ...s }))
 
-    // Initialize all filtered fields to null
     for (const s of samples) {
-      s.accelFiltered = null
-      s.accelSGFull = null
-      s.accelMA9 = null
-      s.accelCFC60 = null
-      s.accelCFC180 = null
-      s.accelLPEnvLight = null
-      s.accelLPEnvMedium = null
-      s.accelLPEnvStrong = null
+      s.accelSG = null
+      s.accelMA = null
+      s.accelButterworth = null
+      s.accelNotch = null
+      s.accelCFC = null
     }
 
-    // Apply Savitzky-Golay main
-    if (cfg.sg.enabled) {
-      const win = sanitizeOddWindow(cfg.sg.windowSize, samples.length)
-      const poly = sanitizePolynomial(cfg.sg.polynomial)
+    if (cfg.savitzkyGolay.enabled) {
+      const win = sanitizeOddWindow(cfg.savitzkyGolay.windowSize, samples.length)
+      const poly = sanitizePolynomial(cfg.savitzkyGolay.polynomial)
       if (win != null) {
         try {
           const y = applySavitzkyGolayAccel(samples, win, poly)
           for (let i = 0; i < samples.length; i++) {
-            samples[i].accelFiltered = y[i]
+            samples[i].accelSG = y[i]
           }
-        } catch (err) {
-          console.warn('Savitzky–Golay main filter error:', err)
-        }
+        } catch {}
       }
     }
 
-    // Apply Savitzky-Golay strong
-    if (cfg.sgFull.enabled) {
-      const win = sanitizeOddWindow(cfg.sgFull.windowSize, samples.length)
-      const poly = sanitizePolynomial(cfg.sgFull.polynomial)
-      if (win != null) {
-        try {
-          const y = applySavitzkyGolayAccel(samples, win, poly)
-          for (let i = 0; i < samples.length; i++) {
-            samples[i].accelSGFull = y[i]
-          }
-        } catch (err) {
-          console.warn('Savitzky–Golay strong filter error:', err)
-        }
-      }
-    }
-
-    // Apply moving average
     if (cfg.movingAverage.enabled) {
       const win = sanitizeOddWindow(cfg.movingAverage.windowSize, samples.length)
       if (win != null) {
         try {
           const y = computeMovingAverageAccel(samples, win)
           for (let i = 0; i < samples.length; i++) {
-            samples[i].accelMA9 = y[i]
+            samples[i].accelMA = y[i]
           }
-        } catch (err) {
-          console.warn('Moving average filter error:', err)
-        }
+        } catch {}
       }
     }
 
-    // Apply Butterworth LP #1
-    if (cfg.butterworth1.enabled) {
+    if (cfg.butterworth.enabled) {
       try {
-        const y = applyButterworthLowpassAccel(samples, cfg.butterworth1.cutoffHz, {
-          order: cfg.butterworth1.order,
-          zeroPhase: cfg.butterworth1.zeroPhase,
+        const y = applyButterworthLowpassAccel(samples, cfg.butterworth.cutoffHz, {
+          order: cfg.butterworth.order,
+          zeroPhase: cfg.butterworth.zeroPhase,
         })
         for (let i = 0; i < samples.length; i++) {
-          samples[i].accelLPEnvLight = y[i]
+          samples[i].accelButterworth = y[i]
         }
-      } catch (err) {
-        console.warn('Butterworth LP #1 error:', err)
-      }
+      } catch {}
     }
 
-    // Apply Butterworth LP #2
-    if (cfg.butterworth2.enabled) {
-      try {
-        const y = applyButterworthLowpassAccel(samples, cfg.butterworth2.cutoffHz, {
-          order: cfg.butterworth2.order,
-          zeroPhase: cfg.butterworth2.zeroPhase,
-        })
-        for (let i = 0; i < samples.length; i++) {
-          samples[i].accelLPEnvMedium = y[i]
-        }
-      } catch (err) {
-        console.warn('Butterworth LP #2 error:', err)
-      }
-    }
-
-    // Apply band-stop (notch)
     if (cfg.notch.enabled) {
       try {
         const y = applyBandstopAccel(samples, cfg.notch.centerHz, cfg.notch.bandwidthHz, {
@@ -123,41 +78,21 @@ export function useFilterEngine(
           zeroPhase: cfg.notch.zeroPhase,
         })
         for (let i = 0; i < samples.length; i++) {
-          samples[i].accelLPEnvStrong = y[i]
+          samples[i].accelNotch = y[i]
         }
-      } catch (err) {
-        console.warn('Band‑stop (notch) filter error:', err)
-      }
+      } catch {}
     }
 
-    // Apply CFC 60
-    if (cfg.cfc60.enabled) {
+    if (cfg.cfc.enabled) {
       try {
-        const { filtered } = applyCrashFilterCFCAccel(samples, cfg.cfc60.cfc, {
-          order: cfg.cfc60.order,
-          zeroPhase: cfg.cfc60.zeroPhase,
+        const { filtered } = applyCrashFilterCFCAccel(samples, cfg.cfc.cfc, {
+          order: cfg.cfc.order,
+          zeroPhase: cfg.cfc.zeroPhase,
         })
         for (let i = 0; i < samples.length; i++) {
-          samples[i].accelCFC60 = filtered[i]
+          samples[i].accelCFC = filtered[i]
         }
-      } catch (err) {
-        console.warn('CFC 60 filter error:', err)
-      }
-    }
-
-    // Apply CFC 180
-    if (cfg.cfc180.enabled) {
-      try {
-        const { filtered } = applyCrashFilterCFCAccel(samples, cfg.cfc180.cfc, {
-          order: cfg.cfc180.order,
-          zeroPhase: cfg.cfc180.zeroPhase,
-        })
-        for (let i = 0; i < samples.length; i++) {
-          samples[i].accelCFC180 = filtered[i]
-        }
-      } catch (err) {
-        console.warn('CFC 180 filter error:', err)
-      }
+      } catch {}
     }
 
     setDisplaySamples(samples)
