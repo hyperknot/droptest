@@ -1,4 +1,5 @@
 import type { SamplePoint } from '../types'
+import { detectFirstHitWindow } from './signal-analysis'
 
 export interface SeriesConfig {
   key: keyof SamplePoint
@@ -18,7 +19,7 @@ export const SERIES_CONFIG: Array<SeriesConfig> = [
   },
   {
     key: 'accelFiltered',
-    displayName: 'Accel SG auto (G)',
+    displayName: 'Accel SG auto (moderate, G)',
     color: '#0ea5e9',
     accessor: (s) => s.accelFiltered ?? null,
     group: 'accel',
@@ -35,6 +36,13 @@ export const SERIES_CONFIG: Array<SeriesConfig> = [
     displayName: 'Accel SG short window (G)',
     color: '#22c55e',
     accessor: (s) => s.accelSGShort ?? null,
+    group: 'accel',
+  },
+  {
+    key: 'accelSGFull',
+    displayName: 'Accel SG full period (strong, G)',
+    color: '#14b8a6',
+    accessor: (s) => s.accelSGFull ?? null,
     group: 'accel',
   },
   {
@@ -56,6 +64,27 @@ export const SERIES_CONFIG: Array<SeriesConfig> = [
     displayName: 'Accel CFC 180 (Butterworth crash filter, G)',
     color: '#b91c1c',
     accessor: (s) => s.accelCFC180 ?? null,
+    group: 'accel',
+  },
+  {
+    key: 'accelLPEnvLight',
+    displayName: 'Accel LP env light (adaptive, G)',
+    color: '#0f766e',
+    accessor: (s) => s.accelLPEnvLight ?? null,
+    group: 'accel',
+  },
+  {
+    key: 'accelLPEnvMedium',
+    displayName: 'Accel LP env medium (adaptive, G)',
+    color: '#10b981',
+    accessor: (s) => s.accelLPEnvMedium ?? null,
+    group: 'accel',
+  },
+  {
+    key: 'accelLPEnvStrong',
+    displayName: 'Accel LP env strong (adaptive, G)',
+    color: '#065f46',
+    accessor: (s) => s.accelLPEnvStrong ?? null,
     group: 'accel',
   },
   {
@@ -135,37 +164,23 @@ export interface FirstHitRange {
   end: number
 }
 
+/**
+ * Use detectFirstHitWindow (signal-analysis) to determine the first-hit time range,
+ * then add a small padding before/after for nicer zooming.
+ */
 export function findFirstHitRange(samples: Array<SamplePoint>): FirstHitRange | null {
-  const threshold = 1.0 // +1 G
+  if (samples.length === 0) return null
 
-  // Find first point where accelFiltered > threshold (our main SG-auto filtered series)
-  let startIdx = -1
-  for (let i = 0; i < samples.length; i++) {
-    const accel = samples[i].accelFiltered
-    if (accel != null && accel > threshold) {
-      startIdx = i
-      break
-    }
-  }
-
-  if (startIdx === -1) {
-    console.log(`FirstHitRange ${JSON.stringify({ message: 'No first hit found' }, null, 2)}`)
+  const detection = detectFirstHitWindow(samples)
+  if (!detection) {
+    console.log('FirstHitRange ' + JSON.stringify({ message: 'No first hit detected' }, null, 2))
     return null
   }
 
-  // Find when it goes back under threshold
-  let endIdx = startIdx
-  for (let i = startIdx + 1; i < samples.length; i++) {
-    const accel = samples[i].accelFiltered
-    if (accel != null && accel <= threshold) {
-      endIdx = i
-      break
-    }
-    endIdx = i
-  }
+  const { startTimeMs, endTimeMs, startIdx, endIdx, peakIdx } = detection.window
 
-  const startTime = samples[startIdx].timeMs - 10 // 10ms padding before
-  const endTime = samples[endIdx].timeMs + 10 // 10ms padding after
+  const startTimePadded = Math.max(0, startTimeMs - 10)
+  const endTimePadded = endTimeMs + 10
 
   console.log(
     'FirstHitRange ' +
@@ -173,8 +188,11 @@ export function findFirstHitRange(samples: Array<SamplePoint>): FirstHitRange | 
         {
           startIdx,
           endIdx,
-          startTime: Math.max(0, startTime),
-          endTime,
+          peakIdx,
+          startTimeMs,
+          endTimeMs,
+          paddedStartTime: startTimePadded,
+          paddedEndTime: endTimePadded,
         },
         null,
         2,
@@ -182,8 +200,8 @@ export function findFirstHitRange(samples: Array<SamplePoint>): FirstHitRange | 
   )
 
   return {
-    start: Math.max(0, startTime),
-    end: endTime,
+    start: startTimePadded,
+    end: endTimePadded,
   }
 }
 

@@ -50,8 +50,41 @@ export interface ImpactAnalysis {
   spectrum: ImpactSpectrumAnalysis | null
   ringingFrequencyEstimateHz: number | null
   ringingPeriodMs: number | null
+  // Recommended Savitzky–Golay smoothing window (in samples) for a *moderate*
+  // level of smoothing (roughly a fraction of the ringing period).
   recommendedSavitzkyGolayWindowSizeSamples: number | null
   recommendedSavitzkyGolayPolynomial: number | null
+}
+
+/**
+ * First‑hit specific detection information.
+ */
+export interface FirstHitWindowInfo {
+  startIdx: number
+  endIdx: number
+  peakIdx: number
+  startTimeMs: number
+  endTimeMs: number
+  peakTimeMs: number
+  peakAccelG: number
+}
+
+export interface FirstHitDetection {
+  window: FirstHitWindowInfo
+  baselineMeanG: number
+  baselineStdG: number
+  onsetFraction: number
+  settleFraction: number
+  onsetThresholdG: number
+  settleThresholdG: number
+  maxHitDurationMs: number
+  settleDurationMs: number
+}
+
+export interface FirstHitAnalysis {
+  detection: FirstHitDetection
+  timeMetrics: ImpactTimeMetrics
+  spectrum: ImpactSpectrumAnalysis | null
 }
 
 /**
@@ -65,7 +98,8 @@ export function estimateSampleRateHz(samples: Array<SamplePoint>): number | null
 }
 
 /**
- * Find the first large positive peak in accelG and return an index-based window around it.
+ * Find the largest positive peak in accelG and return an index-based window around it.
+ * (Used for general impact analysis; not necessarily the "first hit" window.)
  */
 function findImpactWindow(
   samples: Array<SamplePoint>,
@@ -94,7 +128,6 @@ function findImpactWindow(
   const windowStartMs = peakTimeMs - windowHalfWidthMs
   const windowEndMs = peakTimeMs + windowHalfWidthMs
 
-  // Find start/end indices for that time range
   let startIdx = peakIdx
   let endIdx = peakIdx
 
@@ -209,12 +242,10 @@ function computeSpectrumInWindow(
 
   if (n < 8) return null
 
-  // Build detrended, windowed signal
   const raw: Array<number> = windowSamples.map((s) => s.accelG ?? 0)
   const mean = raw.reduce((sum, v) => sum + v, 0) / n
   const detrended = raw.map((v) => v - mean)
 
-  // Zero-pad to next power of 2 for FFT
   const fftSize = 1 << Math.ceil(Math.log2(n))
 
   const fft = new FFT(fftSize)
@@ -224,7 +255,7 @@ function computeSpectrumInWindow(
   for (let i = 0; i < fftSize; i++) {
     const re = i < n ? detrended[i] * hann(i, n) : 0
     input[2 * i] = re
-    input[2 * i + 1] = 0 // imag
+    input[2 * i + 1] = 0
   }
 
   fft.transform(output, input)
@@ -278,7 +309,7 @@ function estimateRingingFrequencyFromZeroCrossings(
 }
 
 /**
- * High-level analysis of the first impact in raw accelG.
+ * High-level analysis of the first impact in raw accelG (global).
  *
  * Logs one JSON blob that you can copy from Chrome devtools:
  *   ImpactAnalysis { ... }
@@ -296,7 +327,7 @@ export function analyzeImpact(
   }
 
   const timeMetrics = computeTimeMetricsInWindow(samples, window)
-  const spectrum = computeSpectrumInWindow(samples, window) // may be null
+  const spectrum = computeSpectrumInWindow(samples, window)
 
   const ringingEstimate = estimateRingingFrequencyFromZeroCrossings(timeMetrics)
   let ringingFrequencyEstimateHz: number | null = null
@@ -308,10 +339,15 @@ export function analyzeImpact(
     ringingFrequencyEstimateHz = ringingEstimate.freqHz
     ringingPeriodMs = ringingEstimate.periodMs
 
-    // Choose window ≈ one period, rounded to nearest odd integer
-    let win = Math.round(ringingEstimate.periodMs)
-    if (win < 5) win = 5
+    // Choose window as a fraction of the ringing period (moderate smoothing),
+    // then clamp to a reasonable range to avoid extreme smearing.
+    const targetFractionOfPeriod = 0.5
+
+    let win = Math.round(ringingEstimate.periodMs * targetFractionOfPeriod)
+    if (win < 7) win = 7
+    if (win > 41) win = 41
     if (win % 2 === 0) win += 1
+
     recommendedWindowSizeSamples = win
   }
 
@@ -326,5 +362,233 @@ export function analyzeImpact(
   }
 
   console.log(`ImpactAnalysis ${JSON.stringify(analysis, null, 2)}`)
+  return analysis
+}
+
+/**
+ * Detect the "first hit" window:
+ *  - Estimate a baseline from early samples.
+ *  - Find the first significant local maximum above baseline.
+ *  - Walk backwards to the onset where the deviation from baseline becomes small.
+ *  - Walk forwards to where the signal has settled back close to baseline for a while.
+ *
+ * Uses whatever acceleration series is available, preferring smoothed series if present.
+ */
+export function detectFirstHitWindow(samples: Array<SamplePoint>): FirstHitDetection | null {
+  const n = samples.length
+  if (n < 10) {
+    console.log(
+      'FirstHitDetection ' +
+        JSON.stringify({ error: 'Not enough samples', sampleCount: n }, null, 2),
+    )
+    return null
+  }
+
+  const sampleRateHz = estimateSampleRateHz(samples) ?? 1000
+
+  const values: Array<number> = samples.map((s) => {
+    if (s.accelSGShort != null && Number.isFinite(s.accelSGShort)) return s.accelSGShort
+    if (s.accelFiltered != null && Number.isFinite(s.accelFiltered)) return s.accelFiltered
+    return s.accelG ?? 0
+  })
+
+  // 1) Baseline from early portion (e.g. first 200 ms or up to 10% of data)
+  const baselineDurationMs = 200
+  const maxBaselineFraction = 0.1
+
+  const baselineEndTimeMs =
+    samples[0].timeMs +
+    Math.min(baselineDurationMs, (samples[n - 1].timeMs - samples[0].timeMs) * maxBaselineFraction)
+
+  const baselineIndices: Array<number> = []
+  for (let i = 0; i < n; i++) {
+    if (samples[i].timeMs <= baselineEndTimeMs) {
+      baselineIndices.push(i)
+    } else {
+      break
+    }
+  }
+  if (baselineIndices.length < 5) {
+    // Fallback: just use the first few samples
+    const count = Math.min(20, n)
+    for (let i = 0; i < count; i++) baselineIndices.push(i)
+  }
+
+  let baselineSum = 0
+  for (const idx of baselineIndices) {
+    baselineSum += values[idx]
+  }
+  const baselineMeanG = baselineSum / baselineIndices.length
+
+  let baselineVar = 0
+  for (const idx of baselineIndices) {
+    const d = values[idx] - baselineMeanG
+    baselineVar += d * d
+  }
+  baselineVar /= baselineIndices.length
+  const baselineStdG = Math.sqrt(baselineVar)
+
+  // 2) Find the first significant local maximum above baseline+margin
+  const minPeakDeltaG = Math.max(5, 4 * baselineStdG)
+  let peakIdx = -1
+  let peakVal = Number.NEGATIVE_INFINITY
+
+  for (let i = 1; i < n - 1; i++) {
+    const v = values[i]
+    const dv = v - baselineMeanG
+    const isLocalMax = v >= values[i - 1] && v >= values[i + 1]
+    if (isLocalMax && dv >= minPeakDeltaG) {
+      peakIdx = i
+      peakVal = v
+      break
+    }
+  }
+
+  if (peakIdx === -1) {
+    // Fallback: global maximum above baseline+minPeakDelta
+    for (let i = 0; i < n; i++) {
+      const dv = values[i] - baselineMeanG
+      if (dv >= minPeakDeltaG && values[i] > peakVal) {
+        peakVal = values[i]
+        peakIdx = i
+      }
+    }
+  }
+
+  if (peakIdx === -1) {
+    console.log(
+      'FirstHitDetection ' +
+        JSON.stringify(
+          {
+            error: 'No significant peak found',
+            baselineMeanG,
+            baselineStdG,
+            minPeakDeltaG,
+          },
+          null,
+          2,
+        ),
+    )
+    return null
+  }
+
+  const peakTimeMs = samples[peakIdx].timeMs
+  const peakAccelG = peakVal
+  const deltaPeak = peakAccelG - baselineMeanG
+
+  // 3) Onset: walk backwards until deviation becomes small
+  const onsetFraction = 0.05 // 5% of peak-baseline deviation
+  const onsetThresholdAbs = Math.abs(deltaPeak * onsetFraction)
+
+  let startIdx = peakIdx
+  for (let i = peakIdx; i >= 0; i--) {
+    const dev = Math.abs(values[i] - baselineMeanG)
+    if (dev <= onsetThresholdAbs) {
+      startIdx = i
+      break
+    }
+  }
+
+  // Add a small padding before onset
+  const paddingBeforeMs = 10
+  const paddingBeforeSamples = Math.max(1, Math.round((paddingBeforeMs / 1000) * sampleRateHz))
+  startIdx = Math.max(0, startIdx - paddingBeforeSamples)
+
+  // 4) End-of-hit: look for sustained near-baseline segment after peak
+  const settleFraction = 0.1 // 10% of peak-baseline deviation
+  const settleThresholdAbs = Math.abs(deltaPeak * settleFraction)
+
+  const settleDurationMs = 40
+  const settleSamples = Math.max(2, Math.round((settleDurationMs / 1000) * sampleRateHz))
+
+  const maxHitDurationMs = 200
+  const maxHitSamples = Math.max(
+    settleSamples + 1,
+    Math.round((maxHitDurationMs / 1000) * sampleRateHz),
+  )
+
+  let endIdx = n - 1
+
+  for (let i = peakIdx + 1; i < n; i++) {
+    // Check a candidate run from i to i + settleSamples - 1
+    let allSmall = true
+    for (let j = i; j < n && j < i + settleSamples; j++) {
+      const dev = Math.abs(values[j] - baselineMeanG)
+      if (dev > settleThresholdAbs) {
+        allSmall = false
+        break
+      }
+    }
+    if (allSmall) {
+      endIdx = Math.max(peakIdx + 1, i - 1)
+      break
+    }
+  }
+
+  // If we never found a stable region, cap the window length
+  if (endIdx <= startIdx || endIdx - startIdx > maxHitSamples) {
+    endIdx = Math.min(startIdx + maxHitSamples, n - 1)
+  }
+
+  const startTimeMs = samples[startIdx].timeMs
+  const endTimeMs = samples[endIdx].timeMs
+
+  const detection: FirstHitDetection = {
+    window: {
+      startIdx,
+      endIdx,
+      peakIdx,
+      startTimeMs,
+      endTimeMs,
+      peakTimeMs,
+      peakAccelG,
+    },
+    baselineMeanG,
+    baselineStdG,
+    onsetFraction,
+    settleFraction,
+    onsetThresholdG: baselineMeanG + Math.sign(deltaPeak) * onsetThresholdAbs,
+    settleThresholdG: baselineMeanG + Math.sign(deltaPeak) * settleThresholdAbs,
+    maxHitDurationMs,
+    settleDurationMs,
+  }
+
+  console.log(`FirstHitDetection ${JSON.stringify(detection, null, 2)}`)
+  return detection
+}
+
+/**
+ * Analyze the first-hit window only:
+ *  - Uses detectFirstHitWindow for the window.
+ *  - Computes time-domain metrics and spectrum in that window.
+ */
+export function analyzeFirstHit(samples: Array<SamplePoint>): FirstHitAnalysis | null {
+  const detection = detectFirstHitWindow(samples)
+  if (!detection) {
+    console.log('FirstHitAnalysis ' + JSON.stringify({ error: 'No first hit detected' }, null, 2))
+    return null
+  }
+
+  const w = detection.window
+  const window: ImpactWindowInfo = {
+    peakIdx: w.peakIdx,
+    peakTimeMs: w.peakTimeMs,
+    peakAccelG: w.peakAccelG,
+    startIdx: w.startIdx,
+    endIdx: w.endIdx,
+    windowStartMs: w.startTimeMs,
+    windowEndMs: w.endTimeMs,
+  }
+
+  const timeMetrics = computeTimeMetricsInWindow(samples, window)
+  const spectrum = computeSpectrumInWindow(samples, window)
+
+  const analysis: FirstHitAnalysis = {
+    detection,
+    timeMetrics,
+    spectrum,
+  }
+
+  console.log(`FirstHitAnalysis ${JSON.stringify(analysis, null, 2)}`)
   return analysis
 }

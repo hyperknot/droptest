@@ -16,12 +16,16 @@ export const AppUI: Component = () => {
   // Default visible series
   const [visibleSeries, setVisibleSeries] = createSignal<Record<string, boolean>>({
     accelG: true,
-    accelFiltered: true, // SG auto
+    accelFiltered: true, // SG auto (moderate)
     accelFactoryFiltered: false,
     accelSGShort: false,
+    accelSGFull: false,
     accelMA9: false,
     accelCFC60: false,
     accelCFC180: false,
+    accelLPEnvLight: false,
+    accelLPEnvMedium: true, // show one envelope-like series by default
+    accelLPEnvStrong: false,
     speed: true,
     pos: true,
     jerk: true,
@@ -124,7 +128,6 @@ export const AppUI: Component = () => {
 
         <Show when={hasData()}>
           <div class="space-y-3">
-            {/* Chart - full width */}
             <section class="bg-white rounded-xl shadow-sm border border-gray-200 py-3 px-4">
               <AccelerationProfileChart
                 samples={testData()!.samples}
@@ -133,7 +136,6 @@ export const AppUI: Component = () => {
               />
             </section>
 
-            {/* Control panel and File info side by side */}
             <div class="grid gap-3 md:grid-cols-2 items-start">
               <ControlPanel
                 samples={testData()!.samples}

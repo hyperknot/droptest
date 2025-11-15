@@ -1,10 +1,13 @@
 import type { DropTestData, FileMetadata, SamplePoint } from '../types'
 import {
+  applyAdaptiveLowpassAccel,
   applyCrashFilterCFCAccel,
   applySavitzkyGolayAccel,
   applySavitzkyGolayAccelAuto,
+  applySavitzkyGolayAccelFullPeriod,
   computeMovingAverageAccel,
 } from './accel-filter'
+import { analyzeFirstHit } from './signal-analysis'
 
 function parseOptionalNumber(value: string | undefined): number | null {
   if (!value) return null
@@ -46,7 +49,6 @@ function parseLabDatetimeToMs(value: string | undefined): number | null {
     return null
   }
 
-  // Only need millisecond resolution; trim/pad fractional part to 3 digits
   let msFraction = fractionStr
   if (msFraction.length > 3) {
     msFraction = msFraction.slice(0, 3)
@@ -57,7 +59,6 @@ function parseLabDatetimeToMs(value: string | undefined): number | null {
   const millis = Number.parseInt(msFraction, 10)
   if (!Number.isFinite(millis)) return null
 
-  // Treat as UTC to get a stable numeric timeline
   return Date.UTC(year, month - 1, day, hour, minute, second, millis)
 }
 
@@ -72,37 +73,31 @@ function detectOriginTime(samples: Array<SamplePoint>): number {
 
   for (let i = 0; i < samples.length; i++) {
     if (samples[i].accelG >= threshold) {
-      continue // Not below threshold yet
+      continue
     }
 
     const triggerTime = samples[i].timeMs
     const durationEnd = triggerTime + durationMs
 
-    // Check if we have enough data to verify 100ms duration
     const lastSampleTime = samples[samples.length - 1].timeMs
     if (lastSampleTime < durationEnd) {
-      // Not enough data to verify full duration
       continue
     }
 
-    // Check if acceleration stays below threshold for the next 100ms
     let staysBelow = true
 
     for (let j = i; j < samples.length; j++) {
       if (samples[j].timeMs > durationEnd) {
-        // Successfully verified full 100ms period
         break
       }
 
       if (samples[j].accelG >= threshold) {
-        // Went back above threshold during the 100ms period
         staysBelow = false
         break
       }
     }
 
     if (staysBelow) {
-      // Found the trigger point! Origin is 200ms before this
       const originTime = triggerTime - lookbackMs
       console.log(
         'OriginDetection ' +
@@ -120,7 +115,6 @@ function detectOriginTime(samples: Array<SamplePoint>): number {
     }
   }
 
-  // No valid trigger found, use 0 as origin
   console.log(`OriginDetection ${JSON.stringify({ originTime: 0 }, null, 2)}`)
   return 0
 }
@@ -131,7 +125,6 @@ export function parseDropTestFile(
 ): Omit<DropTestData, 'statistics'> {
   const lines = text.split('\n').map((line) => line.trim())
 
-  // Extract metadata from comment lines
   const metadata: FileMetadata = {
     info: [],
   }
@@ -151,7 +144,6 @@ export function parseDropTestFile(
     }
   }
 
-  // First pass: collect all datetime values and check they exist
   const rawSamples: Array<{
     accel: number
     datetime: string
@@ -199,7 +191,6 @@ export function parseDropTestFile(
     throw new Error('No valid data samples found in file')
   }
 
-  // Check if datetime values are sorted (monotonically increasing)
   for (let i = 1; i < rawSamples.length; i++) {
     if (rawSamples[i].datetimeAbsMs < rawSamples[i - 1].datetimeAbsMs) {
       throw new Error(
@@ -208,60 +199,65 @@ export function parseDropTestFile(
     }
   }
 
-  // Calculate relative time from first sample (first sample = 0 ms)
   const firstDateTimeMs = rawSamples[0].datetimeAbsMs
   const firstDateTime = rawSamples[0].datetime
 
   const samples: Array<SamplePoint> = rawSamples.map((raw) => ({
     timeMs: raw.datetimeAbsMs - firstDateTimeMs,
-    accelG: raw.accel, // Raw data is already in G
+    accelG: raw.accel,
     speed: raw.speed,
     pos: raw.pos,
     jerk: raw.jerk,
 
-    // Main filtered series (we will fill this later with Savitzky–Golay "auto")
     accelFiltered: null,
-
-    // Factory / logger-provided filtered column from CSV
     accelFactoryFiltered: raw.accelFiltered,
 
-    // Additional series (filled later)
     accelSGShort: null,
+    accelSGFull: null,
     accelMA9: null,
 
-    // Crash‑style filters (filled later)
     accelCFC60: null,
     accelCFC180: null,
+
+    accelLPEnvLight: null,
+    accelLPEnvMedium: null,
+    accelLPEnvStrong: null,
   }))
 
   // Detect origin point based on acceleration threshold (on raw accelG)
   const originTimeMs = detectOriginTime(samples)
 
-  // Filter samples to only include those at or after origin
   const filteredSamples = samples.filter((s) => s.timeMs >= originTimeMs)
 
-  // Adjust timeMs to be relative to new origin
   const adjustedSamples: Array<SamplePoint> = filteredSamples.map((s) => ({
     ...s,
     timeMs: s.timeMs - originTimeMs,
   }))
 
-  // Apply various filters to accelG and populate multiple derived series
   if (adjustedSamples.length >= 5) {
     try {
-      // 1) Savitzky–Golay auto (window ≈ one ringing period)
-      const { smoothed: sgAuto } = applySavitzkyGolayAccelAuto(adjustedSamples)
+      // 1) Savitzky–Golay auto (window based on ringing analysis, moderate smoothing)
+      const {
+        smoothed: sgAuto,
+        analysis,
+        fullPeriodWindowSizeSamples,
+      } = applySavitzkyGolayAccelAuto(adjustedSamples)
 
       // 2) Savitzky–Golay short window (more detail, less smoothing)
-      //    Fixed window size 11 samples (~11 ms at 1 kHz)
       const sgShort = applySavitzkyGolayAccel(adjustedSamples, 11, 3)
 
-      // 3) Simple centered moving average with window size 9 samples (~9 ms)
+      // 3) Savitzky–Golay full-period window (very strong smoothing, envelope-like)
+      const { smoothed: sgFull } = applySavitzkyGolayAccelFullPeriod(adjustedSamples, analysis)
+
+      // 4) Simple centered moving average with window size 9 samples
       const ma9 = computeMovingAverageAccel(adjustedSamples, 9)
 
-      // 4) Crash‑test style Butterworth filters (CFC 60 and CFC 180)
+      // 5) Crash‑test style Butterworth filters (CFC 60 and CFC 180)
       const { filtered: cfc60 } = applyCrashFilterCFCAccel(adjustedSamples, 60)
       const { filtered: cfc180 } = applyCrashFilterCFCAccel(adjustedSamples, 180)
+
+      // 6) Adaptive low‑pass filters based on ringing freq (envelope-like)
+      const adaptive = applyAdaptiveLowpassAccel(adjustedSamples, analysis)
 
       const n = adjustedSamples.length
       for (let i = 0; i < n; i++) {
@@ -270,7 +266,35 @@ export function parseDropTestFile(
         adjustedSamples[i].accelMA9 = ma9[i]
         adjustedSamples[i].accelCFC60 = cfc60[i]
         adjustedSamples[i].accelCFC180 = cfc180[i]
+
+        if (sgFull) {
+          adjustedSamples[i].accelSGFull = sgFull[i]
+        }
+
+        if (adaptive.envLight) {
+          adjustedSamples[i].accelLPEnvLight = adaptive.envLight[i]
+        }
+        if (adaptive.envMedium) {
+          adjustedSamples[i].accelLPEnvMedium = adaptive.envMedium[i]
+        }
+        if (adaptive.envStrong) {
+          adjustedSamples[i].accelLPEnvStrong = adaptive.envStrong[i]
+        }
       }
+
+      // Analyze the first-hit window specifically (time-domain + spectrum on that period)
+      analyzeFirstHit(adjustedSamples)
+
+      console.log(
+        'SavitzkyGolayFullPeriodInfo ' +
+          JSON.stringify(
+            {
+              fullPeriodWindowSizeSamples,
+            },
+            null,
+            2,
+          ),
+      )
     } catch (err) {
       console.warn(
         'AccelFilterError ' +
@@ -285,7 +309,6 @@ export function parseDropTestFile(
     }
   }
 
-  // Extract date from first datetime
   if (firstDateTime) {
     const datePart = firstDateTime.split(' ')[0]
     if (datePart) {
