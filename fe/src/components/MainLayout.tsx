@@ -4,6 +4,7 @@ import type { DropTestData, FilterConfig, SamplePoint, RangeCommand } from '../t
 import { AccelerationProfileChart } from './AccelerationProfileChart'
 import { ControlPanel } from './ControlPanel'
 import { FileInfoPanel } from './FileInfo'
+import { SeriesTogglePanel } from './SeriesTogglePanel'
 
 interface MainLayoutProps {
   testData: DropTestData
@@ -55,10 +56,12 @@ export const MainLayout: Component<MainLayoutProps> = (props) => {
       {/* Right sidebar */}
       <div class="w-80 bg-white border-l border-gray-200 flex flex-col overflow-hidden">
         <div class="flex-1 overflow-y-auto p-2 space-y-2">
-          <ControlPanel
+          <SeriesTogglePanel
             samples={props.displaySamples}
             visibleSeries={visibleSeries()}
             setVisibleSeries={setVisibleSeries}
+          />
+          <ControlPanel
             filterConfig={props.filterConfig}
             setFilterConfig={props.setFilterConfig}
             onFullRange={handleFullRange}
