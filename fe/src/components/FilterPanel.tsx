@@ -25,6 +25,66 @@ export const FilterPanel: Component<FilterPanelProps> = (props) => {
     <section class="bg-white rounded border border-gray-200 p-2 space-y-2 text-sm">
       <h2 class="font-semibold text-base">Filters</h2>
 
+      <div class="border-t pt-2">
+        <label class="flex items-center gap-1.5 mb-1.5">
+          <input
+            type="checkbox"
+            checked={props.filterConfig.cfc.enabled}
+            onChange={(e) => updateFilter('cfc', 'enabled', e.currentTarget.checked)}
+            class="w-3.5 h-3.5"
+          />
+          <span class="font-semibold text-xs">CFC</span>
+        </label>
+        <div class="ml-5 space-y-1.5 text-xs">
+          <div>
+            <label class="block text-[10px] text-gray-600 mb-0.5">
+              CFC: {props.filterConfig.cfc.cfc}
+            </label>
+            <input
+              type="range"
+              min="10"
+              max="300"
+              step="10"
+              value={props.filterConfig.cfc.cfc}
+              onInput={(e) =>
+                updateFilter('cfc', 'cfc', Number(e.currentTarget.value))
+              }
+              class="w-full"
+              disabled={!props.filterConfig.cfc.enabled}
+            />
+          </div>
+          <div>
+            <label class="block text-[10px] text-gray-600 mb-0.5">
+              Order: {props.filterConfig.cfc.order}
+            </label>
+            <input
+              type="range"
+              min="1"
+              max="8"
+              step="1"
+              value={props.filterConfig.cfc.order}
+              onInput={(e) =>
+                updateFilter('cfc', 'order', Number(e.currentTarget.value))
+              }
+              class="w-full"
+              disabled={!props.filterConfig.cfc.enabled}
+            />
+          </div>
+          <label class="flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={props.filterConfig.cfc.zeroPhase}
+              onChange={(e) =>
+                updateFilter('cfc', 'zeroPhase', e.currentTarget.checked)
+              }
+              class="w-3.5 h-3.5"
+              disabled={!props.filterConfig.cfc.enabled}
+            />
+            <span class="text-[10px]">Zero phase</span>
+          </label>
+        </div>
+      </div>
+
       <div class="space-y-2">
         <div class="border-t pt-2">
           <label class="flex items-center gap-1.5 mb-1.5">
@@ -248,65 +308,7 @@ export const FilterPanel: Component<FilterPanelProps> = (props) => {
           </div>
         </div>
 
-        <div class="border-t pt-2">
-          <label class="flex items-center gap-1.5 mb-1.5">
-            <input
-              type="checkbox"
-              checked={props.filterConfig.cfc.enabled}
-              onChange={(e) => updateFilter('cfc', 'enabled', e.currentTarget.checked)}
-              class="w-3.5 h-3.5"
-            />
-            <span class="font-semibold text-xs">CFC</span>
-          </label>
-          <div class="ml-5 space-y-1.5 text-xs">
-            <div>
-              <label class="block text-[10px] text-gray-600 mb-0.5">
-                CFC: {props.filterConfig.cfc.cfc}
-              </label>
-              <input
-                type="range"
-                min="10"
-                max="300"
-                step="10"
-                value={props.filterConfig.cfc.cfc}
-                onInput={(e) =>
-                  updateFilter('cfc', 'cfc', Number(e.currentTarget.value))
-                }
-                class="w-full"
-                disabled={!props.filterConfig.cfc.enabled}
-              />
-            </div>
-            <div>
-              <label class="block text-[10px] text-gray-600 mb-0.5">
-                Order: {props.filterConfig.cfc.order}
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="8"
-                step="1"
-                value={props.filterConfig.cfc.order}
-                onInput={(e) =>
-                  updateFilter('cfc', 'order', Number(e.currentTarget.value))
-                }
-                class="w-full"
-                disabled={!props.filterConfig.cfc.enabled}
-              />
-            </div>
-            <label class="flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={props.filterConfig.cfc.zeroPhase}
-                onChange={(e) =>
-                  updateFilter('cfc', 'zeroPhase', e.currentTarget.checked)
-                }
-                class="w-3.5 h-3.5"
-                disabled={!props.filterConfig.cfc.enabled}
-              />
-              <span class="text-[10px]">Zero phase</span>
-            </label>
-          </div>
-        </div>
+
       </div>
     </section>
   )

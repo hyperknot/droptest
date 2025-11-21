@@ -20,6 +20,20 @@ export const BASE_SERIES_CONFIG: Array<SeriesConfig> = [
 
 export const FILTER_SERIES_CONFIG: Array<SeriesConfig> = [
   {
+    key: 'accelCFC',
+    displayName: 'CFC',
+    color: '#ef4444',
+    accessor: (s) => s.accelCFC,
+    group: 'accel',
+  },
+  {
+    key: 'accelButterworth',
+    displayName: 'Butterworth LP',
+    color: '#10b981',
+    accessor: (s) => s.accelButterworth,
+    group: 'accel',
+  },
+  {
     key: 'accelSG',
     displayName: 'Savitzky-Golay',
     color: '#0ea5e9',
@@ -34,24 +48,10 @@ export const FILTER_SERIES_CONFIG: Array<SeriesConfig> = [
     group: 'accel',
   },
   {
-    key: 'accelButterworth',
-    displayName: 'Butterworth LP',
-    color: '#10b981',
-    accessor: (s) => s.accelButterworth,
-    group: 'accel',
-  },
-  {
     key: 'accelNotch',
     displayName: 'Band-stop',
     color: '#065f46',
     accessor: (s) => s.accelNotch,
-    group: 'accel',
-  },
-  {
-    key: 'accelCFC',
-    displayName: 'CFC',
-    color: '#ef4444',
-    accessor: (s) => s.accelCFC,
     group: 'accel',
   },
 ]

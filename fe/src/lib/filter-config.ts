@@ -1,6 +1,18 @@
 import type { FilterConfig } from '../types'
 
 export const DEFAULT_FILTER_CONFIG: FilterConfig = {
+  cfc: {
+    enabled: true,
+    cfc: 100,
+    order: 4,
+    zeroPhase: true,
+  },
+  butterworth: {
+    enabled: false,
+    cutoffHz: 50,
+    order: 4,
+    zeroPhase: true,
+  },
   savitzkyGolay: {
     enabled: false,
     windowSize: 17,
@@ -10,23 +22,11 @@ export const DEFAULT_FILTER_CONFIG: FilterConfig = {
     enabled: false,
     windowSize: 9,
   },
-  butterworth: {
-    enabled: false,
-    cutoffHz: 50,
-    order: 4,
-    zeroPhase: true,
-  },
   notch: {
     enabled: false,
     centerHz: 30,
     bandwidthHz: 10,
     order: 2,
-    zeroPhase: true,
-  },
-  cfc: {
-    enabled: false,
-    cfc: 60,
-    order: 4,
     zeroPhase: true,
   },
 }

@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "harnessvis-website",
+  "name": "droptest",
   "compatibility_date": "2025-10-17",
   "assets": {
     "directory": "./dist",
