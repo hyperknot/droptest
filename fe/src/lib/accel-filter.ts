@@ -14,6 +14,45 @@ function estimateSampleRateHz(samples: Array<SamplePoint>): number | null {
 }
 
 /**
+ * Apply Savitzky–Golay to calculate Jerk (Derivative of Acceleration).
+ * Result is in G/s (input G, time seconds).
+ */
+export function computeJerkSavitzkyGolay(
+  samples: Array<SamplePoint>,
+  sourceAccessor: (s: SamplePoint) => number | null,
+  windowSizeSamples: number,
+  polynomial = 3,
+): Array<number> {
+  if (!Number.isInteger(windowSizeSamples) || windowSizeSamples <= 1) {
+    throw new Error(`windowSizeSamples must be an integer > 1, got ${windowSizeSamples}`)
+  }
+  if (windowSizeSamples % 2 === 0) {
+    throw new Error(`Savitzky–Golay windowSizeSamples must be odd, got ${windowSizeSamples}`)
+  }
+  if (samples.length < windowSizeSamples) {
+    throw new Error(
+      `Not enough samples (${samples.length}) for windowSizeSamples ${windowSizeSamples}`,
+    )
+  }
+
+  // Extract clean source array, fallback to 0 if null (though logic should prevent this)
+  const y = samples.map((s) => sourceAccessor(s) ?? 0)
+
+  // Calculate time step h in Seconds
+  const dtMs = samples.length >= 2 ? samples[1].timeMs - samples[0].timeMs : 1
+  const h = dtMs / 1000
+
+  const options = {
+    windowSize: windowSizeSamples,
+    polynomial,
+    derivative: 1, // Calculate 1st derivative (da/dt)
+  }
+
+  const jerk: Array<number> = savitzkyGolay(y, h, options)
+  return jerk
+}
+
+/**
  * Apply Savitzky–Golay smoothing to accelG.
  */
 export function applySavitzkyGolayAccel(

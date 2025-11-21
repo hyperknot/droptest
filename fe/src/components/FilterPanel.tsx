@@ -1,4 +1,5 @@
 import type { Component } from 'solid-js'
+import { createMemo } from 'solid-js'
 import type { FilterConfig } from '../types'
 
 interface FilterPanelProps {
@@ -7,6 +8,16 @@ interface FilterPanelProps {
 }
 
 export const FilterPanel: Component<FilterPanelProps> = (props) => {
+  const activeAccelFilters = createMemo(() => {
+    let count = 0
+    if (props.filterConfig.cfc.enabled) count++
+    if (props.filterConfig.savitzkyGolay.enabled) count++
+    if (props.filterConfig.movingAverage.enabled) count++
+    if (props.filterConfig.butterworth.enabled) count++
+    if (props.filterConfig.notch.enabled) count++
+    return count
+  })
+
   const updateFilter = (
     filterKey: keyof FilterConfig,
     field: string,
@@ -85,6 +96,68 @@ export const FilterPanel: Component<FilterPanelProps> = (props) => {
         </div>
       </div>
 
+      {/* JERK CALCULATION SECTION */}
+      <div class="border-t pt-2 bg-purple-50 -mx-2 px-2 pb-2">
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={props.filterConfig.jerk.enabled}
+              onChange={(e) =>
+                updateFilter('jerk', 'enabled', e.currentTarget.checked)
+              }
+              class="w-3.5 h-3.5 accent-purple-600"
+            />
+            <span class="font-semibold text-xs text-purple-900">Jerk (S-G)</span>
+          </label>
+          {props.filterConfig.jerk.enabled && activeAccelFilters() !== 1 && (
+            <span class="text-[10px] text-red-600 font-medium px-1 bg-red-100 rounded">
+              Select exactly 1 accel filter
+            </span>
+          )}
+        </div>
+
+        <div class="ml-5 space-y-1.5 text-xs">
+           <p class="text-[10px] text-gray-500 italic leading-tight">
+             Approximates derivative (da/dt) using Savitzky-Golay on the filtered signal.
+           </p>
+           <div>
+              <label class="block text-[10px] text-gray-600 mb-0.5">
+                SG Window: {props.filterConfig.jerk.windowSize}
+              </label>
+              <input
+                type="range"
+                min="3"
+                max="51"
+                step="2"
+                value={props.filterConfig.jerk.windowSize}
+                onInput={(e) =>
+                  updateFilter('jerk', 'windowSize', Number(e.currentTarget.value))
+                }
+                class="w-full accent-purple-600"
+                disabled={!props.filterConfig.jerk.enabled}
+              />
+            </div>
+            <div>
+              <label class="block text-[10px] text-gray-600 mb-0.5">
+                Polynomial: {props.filterConfig.jerk.polynomial}
+              </label>
+              <input
+                type="range"
+                min="1"
+                max="5"
+                step="1"
+                value={props.filterConfig.jerk.polynomial}
+                onInput={(e) =>
+                  updateFilter('jerk', 'polynomial', Number(e.currentTarget.value))
+                }
+                class="w-full accent-purple-600"
+                disabled={!props.filterConfig.jerk.enabled}
+              />
+            </div>
+        </div>
+      </div>
+
       <div class="space-y-2">
         <div class="border-t pt-2">
           <label class="flex items-center gap-1.5 mb-1.5">
@@ -96,7 +169,7 @@ export const FilterPanel: Component<FilterPanelProps> = (props) => {
               }
               class="w-3.5 h-3.5"
             />
-            <span class="font-semibold text-xs">Savitzky-Golay</span>
+            <span class="font-semibold text-xs">Savitzky-Golay (Accel)</span>
           </label>
           <div class="ml-5 space-y-1.5 text-xs">
             <div>

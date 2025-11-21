@@ -7,6 +7,8 @@ export interface SamplePoint {
   accelButterworth: number | null
   accelNotch: number | null
   accelCFC: number | null
+
+  jerk: number | null
 }
 
 export interface FileMetadata {
@@ -48,6 +50,11 @@ export interface FilterConfig {
     cfc: number
     order: number
     zeroPhase: boolean
+  }
+  jerk: {
+    enabled: boolean
+    windowSize: number
+    polynomial: number
   }
 }
 

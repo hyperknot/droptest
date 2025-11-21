@@ -3,7 +3,7 @@ import type { FilterConfig } from '../types'
 export const DEFAULT_FILTER_CONFIG: FilterConfig = {
   cfc: {
     enabled: true,
-    cfc: 100,
+    cfc: 60, // Standard CFC 60 for drop testing
     order: 4,
     zeroPhase: true,
   },
@@ -28,6 +28,11 @@ export const DEFAULT_FILTER_CONFIG: FilterConfig = {
     bandwidthHz: 10,
     order: 2,
     zeroPhase: true,
+  },
+  jerk: {
+    enabled: true,
+    windowSize: 17, // Moderate smoothing for derivative
+    polynomial: 3,
   },
 }
 

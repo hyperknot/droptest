@@ -99,12 +99,14 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       visibleSeriesInfo.push({ config, range })
     }
 
+    // Map filter enabled states
     const filterMap: Record<string, boolean> = {
       accelSG: props.filterConfig.savitzkyGolay.enabled,
       accelMA: props.filterConfig.movingAverage.enabled,
       accelButterworth: props.filterConfig.butterworth.enabled,
       accelNotch: props.filterConfig.notch.enabled,
       accelCFC: props.filterConfig.cfc.enabled,
+      jerk: props.filterConfig.jerk.enabled, // Map jerk enabled
     }
 
     for (const config of FILTER_SERIES_CONFIG) {
@@ -130,7 +132,8 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       }
     }
 
-    const groupOrder: Array<SeriesConfig['group']> = ['accel']
+    // Explicitly prioritize 'accel' first, then 'jerk'
+    const groupOrder: Array<SeriesConfig['group']> = ['accel', 'jerk']
 
     const orderedGroups = Array.from(groupRanges.entries()).sort(
       (a, b) => groupOrder.indexOf(a[0]) - groupOrder.indexOf(b[0]),
@@ -142,11 +145,17 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
     orderedGroups.forEach(([group, range], index) => {
       const span = range.max - range.min || 1
       const padding = span * 0.05
+
+      // Configure axis based on group
+      const isJerk = group === 'jerk'
+
       yAxes.push({
         type: 'value',
-        show: false,
+        show: false, // Hide axes lines for cleanness, or enable if preferred
+        name: isJerk ? 'Jerk (G/s)' : 'Accel (G)',
         min: range.min - padding,
         max: range.max + padding,
+        // Force jerk to align right if we were showing it, but we hide it for simple UI
       })
       groupAxisIndex.set(group, index)
     })
@@ -165,10 +174,11 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
         type: 'line',
         yAxisIndex,
         showSymbol: false,
-        smooth: false,
+        smooth: false, // Don't smoothing spline the already filtered data
         lineStyle: {
-          width: 2,
+          width: info.config.group === 'jerk' ? 1.5 : 2,
           color: info.config.color,
+          type: info.config.group === 'jerk' ? 'dashed' : 'solid', // Dashed for Jerk
         },
         itemStyle: {
           color: info.config.color,

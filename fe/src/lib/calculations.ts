@@ -5,7 +5,7 @@ export interface SeriesConfig {
   displayName: string
   color: string
   accessor: (s: SamplePoint) => number | null | undefined
-  group: 'accel'
+  group: 'accel' | 'jerk'
 }
 
 export const BASE_SERIES_CONFIG: Array<SeriesConfig> = [
@@ -18,6 +18,7 @@ export const BASE_SERIES_CONFIG: Array<SeriesConfig> = [
   },
 ]
 
+// Added Jerk to the end of the config list
 export const FILTER_SERIES_CONFIG: Array<SeriesConfig> = [
   {
     key: 'accelCFC',
@@ -53,6 +54,13 @@ export const FILTER_SERIES_CONFIG: Array<SeriesConfig> = [
     color: '#065f46',
     accessor: (s) => s.accelNotch,
     group: 'accel',
+  },
+  {
+    key: 'jerk',
+    displayName: 'Jerk (G/s)',
+    color: '#9333ea', // Purple
+    accessor: (s) => s.jerk,
+    group: 'jerk',
   },
 ]
 
