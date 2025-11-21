@@ -11,22 +11,14 @@ interface MainLayoutProps {
   displaySamples: Array<SamplePoint>
   filterConfig: FilterConfig
   setFilterConfig: (cfg: FilterConfig) => void
+  rangeCommand: RangeCommand
+  setRangeCommand: (cmd: RangeCommand) => void
 }
 
 export const MainLayout: Component<MainLayoutProps> = (props) => {
   const [visibleSeries, setVisibleSeries] = createSignal<Record<string, boolean>>({
     accelG: true,
   })
-
-  const [rangeCommand, setRangeCommand] = createSignal<RangeCommand>(null)
-
-  const handleFullRange = () => {
-    setRangeCommand({ type: 'full' })
-  }
-
-  const handleFirstHit = () => {
-    setRangeCommand({ type: 'firstHit' })
-  }
 
   return (
     <div class="h-screen flex overflow-hidden">
@@ -35,7 +27,7 @@ export const MainLayout: Component<MainLayoutProps> = (props) => {
           samples={props.displaySamples}
           visibleSeries={visibleSeries()}
           filterConfig={props.filterConfig}
-          rangeCommand={rangeCommand()}
+          rangeCommand={props.rangeCommand}
         />
       </div>
 
@@ -44,13 +36,13 @@ export const MainLayout: Component<MainLayoutProps> = (props) => {
           <section class="bg-white rounded border border-gray-200 p-2">
             <div class="flex gap-1">
               <button
-                onClick={handleFullRange}
+                onClick={() => props.setRangeCommand({ type: 'full' })}
                 class="flex-1 px-2 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs font-medium"
               >
                 Full range
               </button>
               <button
-                onClick={handleFirstHit}
+                onClick={() => props.setRangeCommand({ type: 'firstHit' })}
                 class="flex-1 px-2 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-xs font-medium"
               >
                 First hit
