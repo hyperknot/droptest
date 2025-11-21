@@ -90,6 +90,7 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       range: { min: number; max: number }
     }> = []
 
+    // Base series (raw accel + jerk)
     for (const config of BASE_SERIES_CONFIG) {
       if (!props.visibleSeries[config.key as string]) continue
 
@@ -99,6 +100,7 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       visibleSeriesInfo.push({ config, range })
     }
 
+    // Filtered accel series (CFC, Butterworth, etc.)
     const filterMap: Record<string, boolean> = {
       accelSG: props.filterConfig.savitzkyGolay.enabled,
       accelMA: props.filterConfig.movingAverage.enabled,
@@ -116,7 +118,7 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       visibleSeriesInfo.push({ config, range })
     }
 
-     type GroupRange = { min: number; max: number }
+    type GroupRange = { min: number; max: number }
     const groupRanges = new Map<SeriesConfig['group'], GroupRange>()
 
     for (const info of visibleSeriesInfo) {

@@ -18,12 +18,13 @@ interface MainLayoutProps {
 export const MainLayout: Component<MainLayoutProps> = (props) => {
   const [visibleSeries, setVisibleSeries] = createSignal<Record<string, boolean>>({
     accelG: true,
+    jerk: true,
   })
 
   return (
     <div class="h-screen flex overflow-hidden">
       <div class="flex-1">
-    <AccelerationProfileChart
+        <AccelerationProfileChart
           samples={props.displaySamples}
           visibleSeries={visibleSeries()}
           filterConfig={props.filterConfig}

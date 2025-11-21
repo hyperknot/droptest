@@ -99,6 +99,86 @@ export function computeJerkSavitzkyGolayFromAccel(
 }
 
 /**
+ * Centered moving average of accelG, with a symmetric window.
+ */
+export function computeMovingAverageAccel(
+  samples: Array<SamplePoint>,
+  windowSizeSamples: number,
+): Array<number> {
+  if (!Number.isInteger(windowSizeSamples) || windowSizeSamples <= 1) {
+    throw new Error(`windowSizeSamples must be an integer > 1, got ${windowSizeSamples}`)
+  }
+  if (windowSizeSamples % 2 === 0) {
+    throw new Error(`Moving average windowSizeSamples must be odd, got ${windowSizeSamples}`)
+  }
+
+  const n = samples.length
+  const result = new Array<number>(n)
+  const half = (windowSizeSamples - 1) / 2
+
+  const values = samples.map((s) => s.accelG ?? 0)
+
+  for (let i = 0; i < n; i++) {
+    const start = Math.max(0, i - half)
+    const end = Math.min(n - 1, i + half)
+
+    let sum = 0
+    let count = 0
+    for (let j = start; j <= end; j++) {
+      sum += values[j]
+      count++
+    }
+    result[i] = count > 0 ? sum / count : values[i]
+  }
+
+  return result
+}
+
+/**
+ * Generic Butterworth low‑pass on accelG using Fili.
+ */
+export function applyButterworthLowpassAccel(
+  samples: Array<SamplePoint>,
+  cutoffHz: number,
+  options: { order?: number; zeroPhase?: boolean } = {},
+): Array<number> {
+  if (samples.length < 4) {
+    throw new Error(`Not enough samples (${samples.length}) for Butterworth filtering`)
+  }
+
+  const order = options.order ?? 4
+  const zeroPhase = options.zeroPhase ?? true
+
+  const estimatedRate = estimateSampleRateHz(samples)
+  const sampleRateHz = estimatedRate && estimatedRate > 0 ? estimatedRate : 1000
+
+  const nyquist = sampleRateHz / 2
+  const fc = Math.min(Math.max(cutoffHz, 0.001), nyquist * 0.99)
+
+  const values = samples.map((s) => s.accelG ?? 0)
+
+  const iirCalculator = new Fili.CalcCascades()
+
+  const coeffs = iirCalculator.lowpass({
+    order,
+    characteristic: 'butterworth',
+    Fs: sampleRateHz,
+    Fc: fc,
+    preGain: true,
+  })
+
+  const forwardFilter = new Fili.IirFilter(coeffs)
+  let filtered = forwardFilter.multiStep(values)
+
+  if (zeroPhase) {
+    const reverseFilter = new Fili.IirFilter(coeffs)
+    filtered = reverseFilter.multiStep(filtered.slice().reverse()).reverse()
+  }
+
+  return filtered
+}
+
+/**
  * Band‑stop (notch) Butterworth filter on accelG.
  */
 export function applyBandstopAccel(
