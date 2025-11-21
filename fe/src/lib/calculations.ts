@@ -18,7 +18,7 @@ export const BASE_SERIES_CONFIG: Array<SeriesConfig> = [
   },
   {
     key: 'accelFactoryFiltered',
-    displayName: 'Accel factory',
+    displayName: 'Accel CSV filtered',
     color: '#6366f1',
     accessor: (s) => s.accelFactoryFiltered,
     group: 'accel',
