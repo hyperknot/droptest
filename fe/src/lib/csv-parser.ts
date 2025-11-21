@@ -1,11 +1,4 @@
 import type { DropTestData, FileMetadata, SamplePoint } from '../types'
-import { computeAccelFromPos, computeAccelFromSpeed } from './accel-filter'
-
-function parseOptionalNumber(value: string | undefined): number | null {
-  if (!value) return null
-  const n = Number.parseFloat(value)
-  return Number.isFinite(n) ? n : null
-}
 
 function parseLabDatetimeToMs(value: string | undefined): number | null {
   if (!value) return null
@@ -53,6 +46,11 @@ function parseLabDatetimeToMs(value: string | undefined): number | null {
   return Date.UTC(year, month - 1, day, hour, minute, second, millis)
 }
 
+/**
+ * Detect origin time (time0) using only datetime-derived timeMs and accelG.
+ * We look for sustained free-fall (accel < -0.5 g) for 100 ms,
+ * then set origin 200 ms before that.
+ */
 function detectOriginTime(samples: Array<SamplePoint>): number {
   const threshold = -0.5
   const durationMs = 100
@@ -103,29 +101,45 @@ export function parseDropTestFile(
     info: [],
   }
 
-  let dataStartIndex = 0
+  let headerColumns: Array<string> | null = null
+  let dataStartIndex = -1
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
+    if (!line) continue
 
     if (line.startsWith('#')) {
       const content = line.substring(1).trim()
       if (content && !content.startsWith('INFO:') && !content.startsWith('---')) {
         metadata.info.push(content)
       }
-    } else if (line.includes('accel') && line.includes('datetime')) {
+      continue
+    }
+
+    const lower = line.toLowerCase()
+    if (lower.includes('accel') && lower.includes('datetime')) {
+      headerColumns = line.split(',').map((s) => s.trim())
       dataStartIndex = i + 1
       break
     }
+  }
+
+  if (!headerColumns || dataStartIndex === -1) {
+    throw new Error('Could not find header line with "accel" and "datetime" columns')
+  }
+
+  const normalizedHeaders = headerColumns.map((h) => h.toLowerCase())
+  const accelIndex = normalizedHeaders.indexOf('accel')
+  const datetimeIndex = normalizedHeaders.indexOf('datetime')
+
+  if (accelIndex === -1 || datetimeIndex === -1) {
+    throw new Error('Header must contain "accel" and "datetime" columns')
   }
 
   const rawSamples: Array<{
     accel: number
     datetime: string
     datetimeAbsMs: number
-    speed: number | null
-    pos: number | null
-    jerk: number | null
-    accelFiltered: number | null
   }> = []
 
   for (let i = dataStartIndex; i < lines.length; i++) {
@@ -133,11 +147,12 @@ export function parseDropTestFile(
     if (!line || line.startsWith('#') || line.startsWith('---')) continue
 
     const parts = line.split(',').map((s) => s.trim())
-    if (parts.length < 3) continue
+    if (parts.length <= Math.max(accelIndex, datetimeIndex)) continue
 
-    const accel = Number.parseFloat(parts[0])
-    const datetime = parts[2]
+    const accelStr = parts[accelIndex]
+    const datetime = parts[datetimeIndex]
 
+    const accel = Number.parseFloat(accelStr)
     if (!Number.isFinite(accel)) continue
 
     const datetimeAbsMs = parseLabDatetimeToMs(datetime)
@@ -145,19 +160,10 @@ export function parseDropTestFile(
       throw new Error(`Invalid datetime format at line ${i + 1}: "${datetime}"`)
     }
 
-    const speed = parseOptionalNumber(parts[3])
-    const pos = parseOptionalNumber(parts[4])
-    const jerk = parseOptionalNumber(parts[5])
-    const accelFiltered = parseOptionalNumber(parts[6])
-
     rawSamples.push({
       accel,
       datetime,
       datetimeAbsMs,
-      speed,
-      pos,
-      jerk,
-      accelFiltered,
     })
   }
 
@@ -179,12 +185,6 @@ export function parseDropTestFile(
   const samples: Array<SamplePoint> = rawSamples.map((raw) => ({
     timeMs: raw.datetimeAbsMs - firstDateTimeMs,
     accelG: raw.accel,
-    speed: raw.speed,
-    pos: raw.pos,
-    jerk: raw.jerk,
-    accelFactoryFiltered: raw.accelFiltered,
-    accelFromSpeed: null,
-    accelFromPos: null,
     accelSG: null,
     accelMA: null,
     accelButterworth: null,
@@ -199,16 +199,6 @@ export function parseDropTestFile(
     ...s,
     timeMs: s.timeMs - originTimeMs,
   }))
-
-  if (adjustedSamples.length >= 5) {
-    const accelFromSpeed = computeAccelFromSpeed(adjustedSamples)
-    const accelFromPos = computeAccelFromPos(adjustedSamples)
-
-    for (let i = 0; i < adjustedSamples.length; i++) {
-      adjustedSamples[i].accelFromSpeed = accelFromSpeed[i]
-      adjustedSamples[i].accelFromPos = accelFromPos[i]
-    }
-  }
 
   if (firstDateTime) {
     const datePart = firstDateTime.split(' ')[0]

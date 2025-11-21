@@ -16,12 +16,6 @@ interface MainLayoutProps {
 export const MainLayout: Component<MainLayoutProps> = (props) => {
   const [visibleSeries, setVisibleSeries] = createSignal<Record<string, boolean>>({
     accelG: true,
-    accelFactoryFiltered: true,
-    speed: false,
-    pos: false,
-    jerk: false,
-    accelFromSpeed: false,
-    accelFromPos: false,
   })
 
   const [rangeCommand, setRangeCommand] = createSignal<RangeCommand>(null)

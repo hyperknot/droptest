@@ -130,7 +130,7 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       }
     }
 
-    const groupOrder: Array<SeriesConfig['group']> = ['accel', 'speed', 'position', 'jerk']
+    const groupOrder: Array<SeriesConfig['group']> = ['accel']
 
     const orderedGroups = Array.from(groupRanges.entries()).sort(
       (a, b) => groupOrder.indexOf(a[0]) - groupOrder.indexOf(b[0]),

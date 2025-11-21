@@ -37,7 +37,7 @@ export const LandingPage: Component<LandingPageProps> = (props) => {
       >
         <p class="text-xl font-medium mb-3">Drop a CSV drop test file here</p>
         <p class="text-sm text-gray-500">
-          Expected format: CSV with accel, time0, datetime columns
+          Expected format: CSV with columns: time0, datetime, accel
         </p>
       </div>
 

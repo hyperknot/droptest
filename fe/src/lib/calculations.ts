@@ -5,7 +5,7 @@ export interface SeriesConfig {
   displayName: string
   color: string
   accessor: (s: SamplePoint) => number | null | undefined
-  group: 'accel' | 'speed' | 'position' | 'jerk'
+  group: 'accel'
 }
 
 export const BASE_SERIES_CONFIG: Array<SeriesConfig> = [
@@ -14,48 +14,6 @@ export const BASE_SERIES_CONFIG: Array<SeriesConfig> = [
     displayName: 'Accel raw',
     color: '#2563eb',
     accessor: (s) => s.accelG,
-    group: 'accel',
-  },
-  {
-    key: 'accelFactoryFiltered',
-    displayName: 'Accel CSV filtered',
-    color: '#6366f1',
-    accessor: (s) => s.accelFactoryFiltered,
-    group: 'accel',
-  },
-  {
-    key: 'speed',
-    displayName: 'Speed',
-    color: '#16a34a',
-    accessor: (s) => s.speed,
-    group: 'speed',
-  },
-  {
-    key: 'pos',
-    displayName: 'Position',
-    color: '#a855f7',
-    accessor: (s) => s.pos,
-    group: 'position',
-  },
-  {
-    key: 'jerk',
-    displayName: 'Jerk',
-    color: '#f97316',
-    accessor: (s) => s.jerk,
-    group: 'jerk',
-  },
-  {
-    key: 'accelFromSpeed',
-    displayName: 'Accel from speed',
-    color: '#db2777',
-    accessor: (s) => s.accelFromSpeed,
-    group: 'accel',
-  },
-  {
-    key: 'accelFromPos',
-    displayName: 'Accel from position',
-    color: '#c026d3',
-    accessor: (s) => s.accelFromPos,
     group: 'accel',
   },
 ]

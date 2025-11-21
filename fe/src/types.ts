@@ -1,12 +1,6 @@
 export interface SamplePoint {
   timeMs: number
   accelG: number
-  speed: number | null
-  pos: number | null
-  jerk: number | null
-  accelFactoryFiltered: number | null
-  accelFromSpeed: number | null
-  accelFromPos: number | null
 
   accelSG: number | null
   accelMA: number | null
