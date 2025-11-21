@@ -19,9 +19,8 @@ export const LandingPage: Component<LandingPageProps> = (props) => {
         <p class="text-gray-600">
           This is an{' '}
           <a
-            href="https://github.com/hyperknot/droptest-viz"
+            href="https://github.com/hyperknot/droptest"
             target="_blank"
-            rel="noopener noreferrer"
             class="text-blue-600 hover:underline font-medium"
           >
             open source
