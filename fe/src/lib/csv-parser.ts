@@ -190,6 +190,7 @@ export function parseDropTestFile(
     accelButterworth: null,
     accelNotch: null,
     accelCFC: null,
+    jerk: null,
   }))
 
   const originTimeMs = detectOriginTime(samples)

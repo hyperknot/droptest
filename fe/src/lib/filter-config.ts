@@ -29,6 +29,12 @@ export const DEFAULT_FILTER_CONFIG: FilterConfig = {
     order: 2,
     zeroPhase: true,
   },
+  jerk: {
+    enabled: true,
+    // 15 samples ≈ 15 ms at 1 kHz: short enough to preserve impact, long enough to reduce noise
+    windowSize: 15,
+    polynomial: 3,
+  },
 }
 
 export function sanitizeOddWindow(value: number, maxLength: number): number | null {

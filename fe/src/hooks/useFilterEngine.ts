@@ -4,6 +4,7 @@ import {
   applyButterworthLowpassAccel,
   applyCrashFilterCFCAccel,
   applySavitzkyGolayAccel,
+  computeJerkSavitzkyGolayFromAccel,
   computeMovingAverageAccel,
 } from '../lib/accel-filter'
 import { sanitizeOddWindow, sanitizePolynomial } from '../lib/filter-config'
@@ -32,7 +33,18 @@ export function useFilterEngine(
       s.accelButterworth = null
       s.accelNotch = null
       s.accelCFC = null
+      s.jerk = null
     }
+
+    // Track which acceleration filters are enabled
+    const enabledAccelFilters: Array<
+      'cfc' | 'butterworth' | 'savitzkyGolay' | 'movingAverage' | 'notch'
+    > = []
+    if (cfg.cfc.enabled) enabledAccelFilters.push('cfc')
+    if (cfg.butterworth.enabled) enabledAccelFilters.push('butterworth')
+    if (cfg.savitzkyGolay.enabled) enabledAccelFilters.push('savitzkyGolay')
+    if (cfg.movingAverage.enabled) enabledAccelFilters.push('movingAverage')
+    if (cfg.notch.enabled) enabledAccelFilters.push('notch')
 
     if (cfg.savitzkyGolay.enabled) {
       const win = sanitizeOddWindow(cfg.savitzkyGolay.windowSize, samples.length)
@@ -93,6 +105,56 @@ export function useFilterEngine(
           samples[i].accelCFC = filtered[i]
         }
       } catch {}
+    }
+
+    // Jerk: only when exactly one accel filter is enabled
+    if (cfg.jerk.enabled && enabledAccelFilters.length === 1) {
+      const activeFilter = enabledAccelFilters[0]
+      let accelKey:
+        | 'accelCFC'
+        | 'accelButterworth'
+        | 'accelSG'
+        | 'accelMA'
+        | 'accelNotch'
+        | undefined
+
+      switch (activeFilter) {
+        case 'cfc':
+          accelKey = 'accelCFC'
+          break
+        case 'butterworth':
+          accelKey = 'accelButterworth'
+          break
+        case 'savitzkyGolay':
+          accelKey = 'accelSG'
+          break
+        case 'movingAverage':
+          accelKey = 'accelMA'
+          break
+        case 'notch':
+          accelKey = 'accelNotch'
+          break
+      }
+
+      if (accelKey) {
+        const hasData = samples.some((s) => {
+          const v = s[accelKey!]
+          return typeof v === 'number' && Number.isFinite(v)
+        })
+
+        if (hasData) {
+          const win = sanitizeOddWindow(cfg.jerk.windowSize, samples.length)
+          const poly = sanitizePolynomial(cfg.jerk.polynomial)
+          if (win != null) {
+            try {
+              const jerk = computeJerkSavitzkyGolayFromAccel(samples, accelKey, win, poly)
+              for (let i = 0; i < samples.length; i++) {
+                samples[i].jerk = jerk[i]
+              }
+            } catch {}
+          }
+        }
+      }
     }
 
     setDisplaySamples(samples)

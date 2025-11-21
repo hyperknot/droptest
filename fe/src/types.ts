@@ -7,6 +7,11 @@ export interface SamplePoint {
   accelButterworth: number | null
   accelNotch: number | null
   accelCFC: number | null
+
+  /**
+   * Jerk derived from a single filtered acceleration series (g / s).
+   */
+  jerk: number | null
 }
 
 export interface FileMetadata {
@@ -48,6 +53,15 @@ export interface FilterConfig {
     cfc: number
     order: number
     zeroPhase: boolean
+  }
+  jerk: {
+    /**
+     * Enable jerk computation and plotting.
+     * Note: jerk is only computed when exactly one acceleration filter is enabled.
+     */
+    enabled: boolean
+    windowSize: number
+    polynomial: number
   }
 }
 

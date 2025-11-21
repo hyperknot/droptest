@@ -116,7 +116,7 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       visibleSeriesInfo.push({ config, range })
     }
 
-    type GroupRange = { min: number; max: number }
+     type GroupRange = { min: number; max: number }
     const groupRanges = new Map<SeriesConfig['group'], GroupRange>()
 
     for (const info of visibleSeriesInfo) {
@@ -130,7 +130,7 @@ export const AccelerationProfileChart: Component<AccelerationProfileChartProps> 
       }
     }
 
-    const groupOrder: Array<SeriesConfig['group']> = ['accel']
+    const groupOrder: Array<SeriesConfig['group']> = ['accel', 'jerk']
 
     const orderedGroups = Array.from(groupRanges.entries()).sort(
       (a, b) => groupOrder.indexOf(a[0]) - groupOrder.indexOf(b[0]),
