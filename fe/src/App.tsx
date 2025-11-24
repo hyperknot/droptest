@@ -16,10 +16,16 @@ export const AppUI = () => {
     <div
       class="min-h-screen bg-slate-50 text-gray-900"
       onDrop={handleDrop}
-      onDragOver={(e) => { e.preventDefault(); uiStore.setIsDragging(true) }}
-      onDragLeave={(e) => { e.preventDefault(); uiStore.setIsDragging(false) }}
+      onDragOver={(e) => {
+        e.preventDefault()
+        uiStore.setIsDragging(true)
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault()
+        uiStore.setIsDragging(false)
+      }}
     >
-      <Show when={uiStore.state.file} fallback={<LandingPage />}>
+      <Show when={uiStore.state.filename} fallback={<LandingPage />}>
         <MainLayout />
       </Show>
     </div>

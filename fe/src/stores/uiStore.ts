@@ -1,14 +1,21 @@
-import { createStore, produce } from 'solid-js/store'
+import { createStore, type SetStoreFunction } from 'solid-js/store'
 import { parseRawCSV } from '../lib/csv-parser'
-import { butterworth } from '../lib/filter/butterworth'
+import { butterworthFilter } from '../lib/filter/butterworth'
 import { detectOriginTime, estimateSampleRateHz } from '../lib/filter/range'
-import { calculateJerkSG } from '../lib/filter/sg'
-import type { AppConfig, DropTestFile, SamplePoint } from '../types'
+import { sgFilter } from '../lib/filter/sg'
+import type { SamplePoint } from '../types'
 
 interface UIState {
-  file: DropTestFile | null
-  config: AppConfig
-  // Using an object with ID ensures consecutive clicks on the same button trigger the effect
+  // File data (flattened from DropTestFile)
+  filename: string | null
+  sampleRateHz: number
+  samples: Array<SamplePoint>
+
+  // Config (flattened from AppConfig, renamed)
+  accelCutoffHz: number // Hz
+  jerkWindowMs: number // ms
+
+  // UI state
   rangeRequest: { type: 'full' | 'firstHit'; id: number } | null
   isDragging: boolean
   error: string | null
@@ -16,16 +23,17 @@ interface UIState {
 
 class UIStore {
   state: UIState
-  private readonly setState: (fn: (min: UIState) => void) => void
+  private readonly setState: SetStoreFunction<UIState>
 
   constructor() {
     const [state, setState] = createStore<UIState>({
-      file: null,
-      config: {
-        cutoffHz: 160,
-        jerkWindow: 17,
-        jerkPoly: 3,
-      },
+      filename: null,
+      sampleRateHz: 1000,
+      samples: [],
+
+      accelCutoffHz: 160,
+      jerkWindowMs: 17,
+
       rangeRequest: null,
       isDragging: false,
       error: null,
@@ -33,42 +41,52 @@ class UIStore {
 
     // eslint-disable-next-line solid/reactivity
     this.state = state
-    this.setState = (fn) => setState(produce(fn))
+    this.setState = setState
   }
 
   setIsDragging(v: boolean) {
-    this.setState((s) => {
-      s.isDragging = v
-    })
+    this.setState('isDragging', v)
   }
 
   setRangeRequest(type: 'full' | 'firstHit') {
-    this.setState((s) => {
-      s.rangeRequest = { type, id: Date.now() }
-    })
+    this.setState('rangeRequest', { type, id: Date.now() })
   }
 
-  updateConfig(key: keyof AppConfig, val: number) {
-    this.setState((s) => {
-      if (key === 'cutoffHz') s.config.cutoffHz = Math.max(1, Math.min(5000, val))
-      if (key === 'jerkWindow') s.config.jerkWindow = Math.max(5, Math.min(51, val))
-      if (key === 'jerkPoly') s.config.jerkPoly = Math.max(1, Math.min(7, val))
-    })
+  setAccelCutoffHz(val: number) {
+    // Max based on 1000 Hz Nyquist (500 Hz) with safety buffer
+    const clamped = Math.max(10, Math.min(450, val))
+    this.setState('accelCutoffHz', clamped)
+    this.applyFilters()
+  }
+
+  setJerkWindowMs(val: number) {
+    const clamped = Math.max(5, Math.min(50, val))
+    this.setState('jerkWindowMs', clamped)
     this.applyFilters()
   }
 
   async loadFile(file: File) {
-    this.setState((s) => {
-      s.error = null
-      s.file = null
-    })
+    this.setState('error', null)
+    this.setState('filename', null)
+    this.setState('samples', [])
 
     try {
       const text = await file.text()
       const rawData = parseRawCSV(text)
       const rate = estimateSampleRateHz(rawData)
-      const origin = detectOriginTime(rawData)
 
+      // Apply butter filter to raw data for origin detection
+      const rawAccel = rawData.map((r) => r.accel)
+      const filteredForOrigin = butterworthFilter(rawAccel, 160, rate, 1)
+
+      // Detect origin using filtered data
+      const dataForOrigin = rawData.map((r, i) => ({
+        timeMs: r.timeMs,
+        accel: filteredForOrigin[i],
+      }))
+      const origin = detectOriginTime(dataForOrigin)
+
+      // Create samples trimmed to origin
       const samples: Array<SamplePoint> = rawData
         .filter((r) => r.timeMs >= origin)
         .map((r) => ({
@@ -78,52 +96,47 @@ class UIStore {
           jerkSG: null,
         }))
 
-      this.setState((s) => {
-        s.file = {
-          filename: file.name,
-          sampleRateHz: rate,
-          samples: samples,
-        }
-      })
+      this.setState('filename', file.name)
+      this.setState('sampleRateHz', rate)
+      this.setState('samples', samples)
 
       this.applyFilters()
-
-      // Trigger the zoom effect
       this.setRangeRequest('firstHit')
     } catch (e: any) {
       console.error(e)
-      this.setState((s) => {
-        s.error = e.message || 'Failed to parse file'
-      })
+      this.setState('error', e.message || 'Failed to parse file')
     }
   }
 
   private applyFilters() {
-    const f = this.state.file
-    const c = this.state.config
-    if (!f) return
+    const samples = this.state.samples
+    const sampleRate = this.state.sampleRateHz
+    const cutoff = this.state.accelCutoffHz
+    const windowMs = this.state.jerkWindowMs
+
+    if (samples.length === 0) return
 
     try {
       // Prevent crash if cutoff is too close to Nyquist
-      // We silently clamp here only to prevent app crash, keeping the UI value active
-      const safeCutoff = Math.min(c.cutoffHz, (f.sampleRateHz / 2) * 0.94)
+      const safeCutoff = Math.min(cutoff, (sampleRate / 2) * 0.94)
 
-      const filteredData = butterworth(f.samples, safeCutoff, f.sampleRateHz)
+      // Apply Butterworth filter (order=1 matches SciPy N=2)
+      const rawAccel = samples.map((s) => s.accelRaw)
+      const filteredData = butterworthFilter(rawAccel, safeCutoff, sampleRate, 1)
 
-      // Create temp array for Jerk calculation
-      const tempSamples = f.samples.map((s, i) => ({ ...s, accelFiltered: filteredData[i] }))
+      // Apply SG filter for jerk (polyOrder=3, derivative=1)
+      const jerkData = sgFilter(filteredData, windowMs, 3, sampleRate, 1)
 
-      const jerkData = calculateJerkSG(tempSamples, c.jerkWindow, c.jerkPoly, f.sampleRateHz)
+      // Update samples with filtered values
+      const updatedSamples = samples.map((s, i) => ({
+        ...s,
+        accelFiltered: filteredData[i],
+        jerkSG: jerkData[i] ?? 0,
+      }))
 
-      this.setState((s) => {
-        if (!s.file) return
-        for (let i = 0; i < s.file.samples.length; i++) {
-          s.file.samples[i].accelFiltered = filteredData[i]
-          s.file.samples[i].jerkSG = jerkData[i] ?? 0
-        }
-      })
+      this.setState('samples', updatedSamples)
     } catch (err) {
-      console.error('Filter calc error', err)
+      console.error('Filter calculation error', err)
     }
   }
 }

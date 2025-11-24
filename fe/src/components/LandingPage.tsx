@@ -5,9 +5,7 @@ export const LandingPage = () => {
   return (
     <div class="max-w-4xl mx-auto py-16 px-6 space-y-8">
       <header class="space-y-4">
-        <h1 class="text-4xl font-bold tracking-tight">
-          Harness Drop Test Data Visualizer
-        </h1>
+        <h1 class="text-4xl font-bold tracking-tight">Harness Drop Test Data Visualizer</h1>
         <p class="text-lg text-gray-600">
           Visualize and analyze real-world drop test data from harness back protectors.
         </p>
@@ -30,9 +28,7 @@ export const LandingPage = () => {
         }`}
       >
         <p class="text-xl font-medium mb-3">Drop a CSV drop test file here</p>
-        <p class="text-sm text-gray-500">
-          Expected format: CSV with columns: time0, datetime, accel
-        </p>
+        <p class="text-sm text-gray-500">Expected format: CSV with columns: time0, datetime, accel</p>
       </div>
 
       <Show when={uiStore.state.error}>

@@ -3,6 +3,20 @@ import { createEffect, onCleanup, onMount } from 'solid-js'
 import { findFirstHitRange } from '../lib/filter/range'
 import { uiStore } from '../stores/uiStore'
 
+// Default ranges
+const ACCEL_DEFAULT_MIN = -3
+const ACCEL_DEFAULT_MAX = 42
+const ACCEL_EXPAND_THRESHOLD = 50
+const JERK_DEFAULT_MIN = -4000
+const JERK_DEFAULT_MAX = 4000
+
+// Colors
+const COLOR_ACCEL_FILTERED = '#2563eb' // Blue
+const COLOR_ACCEL_OUT_OF_RANGE = '#f97316' // Orange
+const COLOR_JERK = '#a855f7' // Purple
+const COLOR_JERK_OUT_OF_RANGE = '#ef4444' // Red
+const COLOR_RAW = '#16a34a' // Green
+
 export const AccelerationProfileChart = () => {
   let divRef: HTMLDivElement | undefined
   let chartInst: echarts.ECharts | null = null
@@ -17,7 +31,7 @@ export const AccelerationProfileChart = () => {
 
     chartInst.setOption({
       animation: false,
-      grid: { left: 60, right: 60, top: 30, bottom: 40 },
+      grid: { left: 70, right: 70, top: 30, bottom: 40 },
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'cross' },
@@ -39,22 +53,24 @@ export const AccelerationProfileChart = () => {
         max: 'dataMax',
       },
       yAxis: [
-        {
-          type: 'value',
-          name: 'Accel (g)',
-          position: 'left',
-          min: -3,
-          max: 45,
-          axisLine: { show: true, lineStyle: { color: '#333' } },
-          splitLine: { show: true, lineStyle: { type: 'dashed', opacity: 0.5 } },
-        },
+        // Left axis: Jerk (purple)
         {
           type: 'value',
           name: 'Jerk (g/s)',
+          position: 'left',
+          axisLine: { show: true, lineStyle: { color: COLOR_JERK } },
+          nameTextStyle: { color: COLOR_JERK },
+          axisLabel: { color: COLOR_JERK },
+          splitLine: { show: false },
+        },
+        // Right axis: Accel (blue)
+        {
+          type: 'value',
+          name: 'Accel (g)',
           position: 'right',
-          min: -4000,
-          max: 4000,
-          axisLine: { show: true, lineStyle: { color: '#333' } },
+          axisLine: { show: true, lineStyle: { color: COLOR_ACCEL_FILTERED } },
+          nameTextStyle: { color: COLOR_ACCEL_FILTERED },
+          axisLabel: { color: COLOR_ACCEL_FILTERED },
           splitLine: { show: false },
         },
       ],
@@ -65,46 +81,71 @@ export const AccelerationProfileChart = () => {
           filterMode: 'none',
         },
       ],
-      visualMap: [
-        {
-          show: false,
-          seriesIndex: 1, // Accel Filtered
-          pieces: [{ gt: -3, lt: 45, color: '#2563eb' }], // Blue
-          outOfRange: { color: '#f97316' }, // Orange
-        },
-        {
-          show: false,
-          seriesIndex: 2, // Jerk
-          pieces: [{ gt: -4000, lt: 4000, color: '#a855f7' }], // Purple
-          outOfRange: { color: '#ef4444' }, // Red
-        },
-      ],
     })
   })
 
   // DATA UPDATE
   createEffect(() => {
-    const file = uiStore.state.file
-    if (!chartInst || !file) return
+    const samples = uiStore.state.samples
+    if (!chartInst || samples.length === 0) return
 
-    const samples = file.samples
+    // Calculate actual data ranges
+    let accelMin = Infinity
+    let accelMax = -Infinity
+    let jerkMin = Infinity
+    let jerkMax = -Infinity
+
+    for (const s of samples) {
+      const accel = s.accelFiltered ?? s.accelRaw
+      const jerk = s.jerkSG ?? 0
+
+      if (accel < accelMin) accelMin = accel
+      if (accel > accelMax) accelMax = accel
+      if (jerk < jerkMin) jerkMin = jerk
+      if (jerk > jerkMax) jerkMax = jerk
+    }
+
+    // Accel axis: default -3..42, expand if data exceeds threshold
+    const yAccelMin = Math.min(ACCEL_DEFAULT_MIN, accelMin - 1)
+    const yAccelMax = accelMax > ACCEL_EXPAND_THRESHOLD ? accelMax + 2 : ACCEL_DEFAULT_MAX
+
+    // Jerk axis: default range, expand if needed
+    const yJerkMin = Math.min(JERK_DEFAULT_MIN, jerkMin - 200)
+    const yJerkMax = Math.max(JERK_DEFAULT_MAX, jerkMax + 200)
 
     chartInst.setOption({
+      yAxis: [
+        { min: yJerkMin, max: yJerkMax },
+        { min: yAccelMin, max: yAccelMax },
+      ],
+      visualMap: [
+        {
+          show: false,
+          seriesIndex: 1, // Filtered Accel
+          pieces: [{ gte: ACCEL_DEFAULT_MIN, lte: ACCEL_DEFAULT_MAX, color: COLOR_ACCEL_FILTERED }],
+          outOfRange: { color: COLOR_ACCEL_OUT_OF_RANGE },
+        },
+        {
+          show: false,
+          seriesIndex: 2, // Jerk
+          pieces: [{ gte: JERK_DEFAULT_MIN, lte: JERK_DEFAULT_MAX, color: COLOR_JERK }],
+          outOfRange: { color: COLOR_JERK_OUT_OF_RANGE },
+        },
+      ],
       series: [
         {
           name: 'Raw Accel',
           type: 'line',
-          yAxisIndex: 0,
+          yAxisIndex: 1,
           showSymbol: false,
-          // Bright Green for Raw
-          lineStyle: { color: '#16a34a', width: 1.5, opacity: 0.5 },
+          lineStyle: { color: COLOR_RAW, width: 1.5, opacity: 0.5 },
           data: samples.map((s) => [s.timeMs, s.accelRaw]),
           z: 1,
         },
         {
           name: 'Filtered Accel',
           type: 'line',
-          yAxisIndex: 0,
+          yAxisIndex: 1,
           showSymbol: false,
           lineStyle: { width: 2.5 },
           data: samples.map((s) => [s.timeMs, s.accelFiltered]),
@@ -113,13 +154,13 @@ export const AccelerationProfileChart = () => {
         {
           name: 'Jerk SG',
           type: 'line',
-          yAxisIndex: 1,
+          yAxisIndex: 0,
           showSymbol: false,
           lineStyle: { width: 1.5 },
           data: samples.map((s) => [s.timeMs, s.jerkSG]),
           markLine: {
             symbol: 'none',
-            lineStyle: { color: 'rgba(0,0,0,0.2)', width: 1 },
+            lineStyle: { color: 'rgba(168, 85, 247, 0.3)', width: 1 },
             data: [{ yAxis: 0 }],
             silent: true,
           },
@@ -132,22 +173,24 @@ export const AccelerationProfileChart = () => {
   // RANGE COMMAND (Zoom)
   createEffect(() => {
     const cmd = uiStore.state.rangeRequest
-    const file = uiStore.state.file
-    if (!chartInst || !cmd || !file) return
+    const samples = uiStore.state.samples
+    if (!chartInst || !cmd || samples.length === 0) return
 
     let start = 0
     let end = 100
 
-    // Check the type properly
     if (cmd.type === 'firstHit') {
-      const range = findFirstHitRange(file.samples)
-      // Only apply if we found a valid hit range
-      if (range) {
-        const lastT = file.samples[file.samples.length - 1].timeMs
-        if (lastT > 0) {
-          start = (range.min / lastT) * 100
-          end = (range.max / lastT) * 100
+      try {
+        const range = findFirstHitRange(samples)
+        if (range) {
+          const lastT = samples[samples.length - 1].timeMs
+          if (lastT > 0) {
+            start = (range.min / lastT) * 100
+            end = (range.max / lastT) * 100
+          }
         }
+      } catch (err) {
+        console.error('Failed to find first hit range:', err)
       }
     }
 
