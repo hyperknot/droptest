@@ -1,7 +1,7 @@
 import { createStore, produce } from 'solid-js/store'
 import { parseRawCSV } from '../lib/csv-parser'
 import { butterworth } from '../lib/filter/butterworth'
-import { calculateJerkSG } from '../lib/filter/compute'
+import { calculateJerkSG } from '../lib/filter/sg'
 import { detectOriginTime, estimateSampleRateHz } from '../lib/filter/range'
 import type { AppConfig, DropTestFile, SamplePoint } from '../types'
 
