@@ -59,28 +59,30 @@ export const MainLayout = () => {
             </div>
 
             <div class="bg-white p-3 rounded border border-slate-200 text-[11px] text-slate-600 space-y-1 mb-3 shadow-sm">
-              <p><span class="font-semibold text-slate-900">Filter:</span> CFC Butterworth Low-pass</p>
-              <p><span class="font-semibold text-slate-900">Order:</span> 4 (Standard)</p>
-              <p><span class="font-semibold text-slate-900">Phase:</span> Zero-phase (Bidirectional)</p>
+              <p><span class="font-semibold text-slate-900">Algorithm:</span> Butterworth (Zero-phase)</p>
+              <p><span class="font-semibold text-slate-900">Type:</span> Digital Low-pass</p>
+              <p class="pt-1 italic text-slate-500">
+                This implementation uses a bidirectional (zero-phase) Butterworth filter, compatible with the CFC industry standard for automotive crash testing.
+              </p>
             </div>
 
             <div class="space-y-2">
               <div class="flex justify-between items-center">
-                <label class="text-xs font-bold text-slate-700">CFC Class</label>
-                <span class="text-xs font-mono bg-slate-200 px-1.5 py-0.5 rounded">{cfg().cfc} Hz</span>
+                <label class="text-xs font-bold text-slate-700">Cutoff Frequency</label>
+                <span class="text-xs font-mono bg-slate-200 px-1.5 py-0.5 rounded">{cfg().cutoffHz} Hz</span>
               </div>
               <input
                 type="range"
                 min="10"
                 max="300"
                 step="10"
-                value={cfg().cfc}
-                onInput={(e) => uiStore.updateConfig('cfc', Number(e.currentTarget.value))}
+                value={cfg().cutoffHz}
+                onInput={(e) => uiStore.updateConfig('cutoffHz', Number(e.currentTarget.value))}
                 class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
               />
               <div class="flex justify-between text-[10px] text-slate-400 px-1">
-                <span>10</span>
-                <span>300</span>
+                <span>10 Hz</span>
+                <span>300 Hz</span>
               </div>
             </div>
           </section>
@@ -95,7 +97,7 @@ export const MainLayout = () => {
             </div>
 
             <p class="text-[11px] text-slate-500 mb-3 leading-relaxed">
-              Rate of change of acceleration. Computed using the <strong class="text-slate-600">Savitzky-Golay Differentiation Filter</strong> on the CFC filtered data.
+              Rate of change of acceleration. Computed using the <strong class="text-slate-600">Savitzky-Golay Differentiation Filter</strong> on the filtered data.
             </p>
 
             <div class="space-y-4">

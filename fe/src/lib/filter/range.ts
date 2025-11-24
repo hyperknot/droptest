@@ -51,10 +51,10 @@ export function detectOriginTime(raw: Array<{ timeMs: number; accel: number }>):
 }
 
 export function findFirstHitRange(samples: Array<SamplePoint>): TimeRange | null {
-  // Use filtered accel (CFC) for detection if available, otherwise raw
+  // Use filtered accel for detection if available, otherwise raw
   const data = samples.map((s) => ({
     t: s.timeMs,
-    v: s.accelCFC ?? s.accelRaw,
+    v: s.accelFiltered ?? s.accelRaw,
   }))
 
   let peakVal = Number.NEGATIVE_INFINITY

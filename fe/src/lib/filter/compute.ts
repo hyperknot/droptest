@@ -1,6 +1,3 @@
-// @ts-expect-error
-
-import Fili from 'fili'
 import savitzkyGolay from 'ml-savitzky-golay'
 import type { SamplePoint } from '../../types'
 
@@ -18,7 +15,8 @@ export function calculateJerkSG(
   let p = Math.round(poly)
   if (p >= win) p = win - 1
 
-  const values = samples.map((s) => s.accelCFC ?? s.accelRaw)
+  // Use filtered data if available, otherwise raw
+  const values = samples.map((s) => s.accelFiltered ?? s.accelRaw)
   const dt = 1 / sampleRate
 
   // Derivative 1 gives unit/second (e.g. g/s)

@@ -1,6 +1,7 @@
 import { createStore, produce } from 'solid-js/store'
 import { parseRawCSV } from '../lib/csv-parser'
-import { calculateCFC, calculateJerkSG } from '../lib/filter/compute'
+import { butterworth } from '../lib/filter/butterworth'
+import { calculateJerkSG } from '../lib/filter/compute'
 import { detectOriginTime, estimateSampleRateHz } from '../lib/filter/range'
 import type { AppConfig, DropTestFile, SamplePoint } from '../types'
 
@@ -21,7 +22,7 @@ class UIStore {
     const [state, setState] = createStore<UIState>({
       file: null,
       config: {
-        cfc: 100, // Default CFC 60
+        cutoffHz: 100,
         jerkWindow: 15,
         jerkPoly: 3,
       },
@@ -48,7 +49,7 @@ class UIStore {
 
   updateConfig(key: keyof AppConfig, val: number) {
     this.setState((s) => {
-      if (key === 'cfc') s.config.cfc = Math.max(10, Math.min(300, val))
+      if (key === 'cutoffHz') s.config.cutoffHz = Math.max(1, Math.min(5000, val))
       if (key === 'jerkWindow') s.config.jerkWindow = Math.max(5, Math.min(51, val))
       if (key === 'jerkPoly') s.config.jerkPoly = Math.max(1, Math.min(7, val))
     })
@@ -72,7 +73,7 @@ class UIStore {
         .map((r) => ({
           timeMs: r.timeMs - origin,
           accelRaw: r.accel,
-          accelCFC: null,
+          accelFiltered: null,
           jerkSG: null,
         }))
 
@@ -102,17 +103,21 @@ class UIStore {
     if (!f) return
 
     try {
-      const cfcData = calculateCFC(f.samples, c.cfc, f.sampleRateHz)
+      // Prevent crash if cutoff is too close to Nyquist
+      // We silently clamp here only to prevent app crash, keeping the UI value active
+      const safeCutoff = Math.min(c.cutoffHz, (f.sampleRateHz / 2) * 0.94)
+
+      const filteredData = butterworth(f.samples, safeCutoff, f.sampleRateHz)
 
       // Create temp array for Jerk calculation
-      const tempSamples = f.samples.map((s, i) => ({ ...s, accelCFC: cfcData[i] }))
+      const tempSamples = f.samples.map((s, i) => ({ ...s, accelFiltered: filteredData[i] }))
 
       const jerkData = calculateJerkSG(tempSamples, c.jerkWindow, c.jerkPoly, f.sampleRateHz)
 
       this.setState((s) => {
         if (!s.file) return
         for (let i = 0; i < s.file.samples.length; i++) {
-          s.file.samples[i].accelCFC = cfcData[i]
+          s.file.samples[i].accelFiltered = filteredData[i]
           s.file.samples[i].jerkSG = jerkData[i] ?? 0
         }
       })

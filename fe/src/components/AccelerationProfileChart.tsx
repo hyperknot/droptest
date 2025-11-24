@@ -68,7 +68,7 @@ export const AccelerationProfileChart = () => {
       visualMap: [
         {
           show: false,
-          seriesIndex: 1, // Accel CFC
+          seriesIndex: 1, // Accel Filtered
           pieces: [{ gt: -3, lt: 45, color: '#2563eb' }], // Blue
           outOfRange: { color: '#f97316' }, // Orange
         },
@@ -102,12 +102,12 @@ export const AccelerationProfileChart = () => {
           z: 1,
         },
         {
-          name: 'Accel CFC',
+          name: 'Filtered Accel',
           type: 'line',
           yAxisIndex: 0,
           showSymbol: false,
           lineStyle: { width: 2.5 },
-          data: samples.map((s) => [s.timeMs, s.accelCFC]),
+          data: samples.map((s) => [s.timeMs, s.accelFiltered]),
           z: 2,
         },
         {

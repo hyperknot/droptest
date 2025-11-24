@@ -1,7 +1,7 @@
 export interface SamplePoint {
   timeMs: number
   accelRaw: number
-  accelCFC: number | null
+  accelFiltered: number | null
   jerkSG: number | null
 }
 
@@ -12,7 +12,7 @@ export interface DropTestFile {
 }
 
 export interface AppConfig {
-  cfc: number // Hz
+  cutoffHz: number // Hz
   jerkWindow: number // samples (odd)
   jerkPoly: number // polynomial order
 }
