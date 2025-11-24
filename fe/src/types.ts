@@ -5,46 +5,13 @@ export interface SamplePoint {
   jerkSG: number | null
 }
 
-export interface FileMetadata {
-  info: Array<string>
-  date?: string
-}
-
-export interface DropTestData {
+export interface DropTestFile {
   filename: string
+  sampleRateHz: number
   samples: Array<SamplePoint>
-  metadata: FileMetadata
 }
 
-export interface FilterConfig {
-  savitzkyGolay: {
-    enabled: boolean
-    windowSize: number
-    polynomial: number
-  }
-  cfc: {
-    enabled: boolean
-    cfc: number
-    order: number
-    zeroPhase: boolean
-  }
-  jerk: {
-    /**
-     * Enable jerk computation and plotting.
-     * Note: jerk is only computed when exactly one acceleration filter is enabled.
-     */
-    enabled: boolean
-    windowSize: number
-    polynomial: number
-  }
+export interface AppConfig {
+  cfc: number // Hz
+  jerkWindow: number // samples
 }
-
-export type AccelSeriesKey =
-  | 'accelG'
-  | 'accelSG'
-  | 'accelMA'
-  | 'accelButterworth'
-  | 'accelNotch'
-  | 'accelCFC'
-
-export type RangeCommand = { type: 'full' } | { type: 'firstHit' } | null

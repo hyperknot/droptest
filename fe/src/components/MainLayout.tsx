@@ -1,70 +1,67 @@
-import type { Component } from 'solid-js'
-import { createSignal } from 'solid-js'
-import type { DropTestData, FilterConfig, SamplePoint, RangeCommand } from '../types'
+import { uiStore } from '../stores/uiStore'
 import { AccelerationProfileChart } from './AccelerationProfileChart'
-import { FilterPanel } from './FilterPanel'
-import { FileInfoPanel } from './FileInfo'
-import { SeriesTogglePanel } from './SeriesTogglePanel'
 
-interface MainLayoutProps {
-  testData: DropTestData
-  displaySamples: Array<SamplePoint>
-  filterConfig: FilterConfig
-  setFilterConfig: (cfg: FilterConfig) => void
-  rangeCommand: RangeCommand
-  setRangeCommand: (cmd: RangeCommand) => void
-}
-
-export const MainLayout: Component<MainLayoutProps> = (props) => {
-  const [visibleSeries, setVisibleSeries] = createSignal<Record<string, boolean>>({
-    accelG: true,
-    jerk: true,
-  })
+export const MainLayout = () => {
+  const f = () => uiStore.state.file!
+  const cfg = () => uiStore.state.config
 
   return (
     <div class="h-screen flex overflow-hidden">
-      <div class="flex-1">
-        <AccelerationProfileChart
-          samples={props.displaySamples}
-          visibleSeries={visibleSeries()}
-          filterConfig={props.filterConfig}
-          rangeCommand={props.rangeCommand}
-        />
+      <div class="flex-1 relative">
+        <AccelerationProfileChart />
       </div>
 
-      <div class="w-80 bg-white border-l border-gray-200 flex flex-col overflow-hidden">
-        <div class="flex-1 overflow-y-auto p-2 space-y-2">
-          <section class="bg-white rounded border border-gray-200 p-2">
-            <div class="flex gap-1">
-              <button
-                onClick={() => props.setRangeCommand({ type: 'full' })}
-                class="flex-1 px-2 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs font-medium"
-              >
-                Full range
-              </button>
-              <button
-                onClick={() => props.setRangeCommand({ type: 'firstHit' })}
-                class="flex-1 px-2 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-xs font-medium"
-              >
-                First hit
-              </button>
-            </div>
-          </section>
-
-          <SeriesTogglePanel
-            samples={props.displaySamples}
-            visibleSeries={visibleSeries()}
-            setVisibleSeries={setVisibleSeries}
-          />
-
-          <FilterPanel
-            filterConfig={props.filterConfig}
-            setFilterConfig={props.setFilterConfig}
-          />
-
-          <FileInfoPanel data={props.testData} />
+      <aside class="w-72 bg-white border-l border-gray-200 flex flex-col p-4 gap-4 z-10 shadow-lg">
+        <div>
+          <h2 class="font-bold text-lg mb-1">{f().filename}</h2>
+          <div class="text-xs text-gray-500">
+             {f().samples.length.toLocaleString()} samples @ ~ {f().sampleRateHz} Hz
+          </div>
         </div>
-      </div>
+
+        <div class="flex gap-2">
+          <button
+             class="flex-1 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded text-sm font-medium transition"
+             onClick={() => uiStore.setRangeRequest('full')}
+          >
+            Full View
+          </button>
+          <button
+             class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition"
+             onClick={() => uiStore.setRangeRequest('firstHit')}
+          >
+            First Hit
+          </button>
+        </div>
+
+        <div class="border-t pt-4 space-y-4">
+          <h3 class="font-semibold text-sm text-gray-700">Filter Settings</h3>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">
+              ACCEL CFC Class ({cfg().cfc})
+            </label>
+            <input
+              type="range" min="10" max="1000" step="10"
+              value={cfg().cfc}
+              onInput={(e) => uiStore.updateConfig('cfc', Number(e.currentTarget.value))}
+              class="w-full"
+            />
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">
+              JERK SG Window ({cfg().jerkWindow})
+            </label>
+            <input
+              type="range" min="5" max="51" step="2"
+              value={cfg().jerkWindow}
+              onInput={(e) => uiStore.updateConfig('jerkWindow', Number(e.currentTarget.value))}
+              class="w-full"
+            />
+          </div>
+        </div>
+      </aside>
     </div>
   )
 }

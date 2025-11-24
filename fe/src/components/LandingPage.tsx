@@ -1,50 +1,28 @@
-import type { Component } from 'solid-js'
-import { Show } from 'solid-js'
+import { uiStore } from '../stores/uiStore'
 
-interface LandingPageProps {
-  isDragging: boolean
-  error: string
-}
-
-export const LandingPage: Component<LandingPageProps> = (props) => {
+export const LandingPage = () => {
   return (
-    <div class="max-w-4xl mx-auto py-16 px-6 space-y-8">
-      <header class="space-y-4">
-        <h1 class="text-4xl font-bold tracking-tight">
-          Harness Drop Test Data Visualizer
-        </h1>
-        <p class="text-lg text-gray-600">
-          Visualize and analyze real-world drop test data from harness back protectors.
-        </p>
-        <p class="text-gray-600">
-          This is an{' '}
-          <a
-            href="https://github.com/hyperknot/droptest"
-            target="_blank"
-            class="text-blue-600 hover:underline font-medium"
-          >
-            open source
-          </a>{' '}
-          project by Zsolt Ero.
-        </p>
-      </header>
-
+    <div class="h-screen flex flex-col items-center justify-center p-4">
       <div
-        class={`border-2 border-dashed rounded-lg p-16 text-center transition-colors ${
-          props.isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-white'
-        }`}
+        class={`
+          max-w-xl w-full border-2 border-dashed rounded-xl p-12 text-center transition-all
+          ${uiStore.state.isDragging ? 'border-blue-500 bg-blue-50 scale-105' : 'border-gray-300 bg-white'}
+        `}
       >
-        <p class="text-xl font-medium mb-3">Drop a CSV drop test file here</p>
-        <p class="text-sm text-gray-500">
-          Expected format: CSV with columns: time0, datetime, accel
-        </p>
-      </div>
+        <h1 class="text-2xl font-bold text-gray-800 mb-2">Drop Test Visualizer</h1>
 
-      <Show when={props.error}>
-        <div class="text-red-600 bg-red-50 p-4 rounded border border-red-200">
-          {props.error}
+        {uiStore.state.error ? (
+           <div class="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">
+             {uiStore.state.error}
+           </div>
+        ) : (
+           <p class="text-gray-500 mb-8">Drop a CSV file (datetime, accel) to begin.</p>
+        )}
+
+        <div class="text-xs text-gray-400">
+          Simple. Fast. Accel CFC & Jerk SG only.
         </div>
-      </Show>
+      </div>
     </div>
   )
 }
