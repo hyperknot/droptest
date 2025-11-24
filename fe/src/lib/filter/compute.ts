@@ -5,37 +5,37 @@ import type { SamplePoint } from '../../types'
 
 export function calculateCFC(
   samples: Array<SamplePoint>,
-  cfcFreq: number,
+  cfcFreq: number, // CFC class, e.g. 60, 180, 600
   sampleRate: number,
 ): Array<number> {
-  // CFC approximation: Cutoff = CFC * 1.667 (roughly)
-  // Standard SAE J211
-  const cutoff = cfcFreq * 1.667
+  const raw = samples.map((s) => s.accelRaw)
 
-  // Safety check for Nyquist
-  // If cutoff is too close to sampleRate/2, Fili might explode or return NaNs.
+  // SAE J211 analog mapping:
+  const analogFc = 1.667 * cfcFreq
+
+  // Correction for two-pass 2nd-order Butterworth
+  const twoPassCorrection = 1.0 / 0.8023 // ≈ 1.246
+  let singlePassFc = analogFc * twoPassCorrection // ≈ 2.08 * CFC
+
+  // Nyquist safety
   const nyquist = sampleRate / 2
-  const safeCutoff = Math.min(cutoff, nyquist * 0.95)
+  singlePassFc = Math.min(singlePassFc, nyquist * 0.95)
 
   const iirCalculator = new Fili.CalcCascades()
-  // Order 4 Butterworth (2nd order cascaded twice forward/backward effectively gives higher order falloff,
-  // but SAE J211 specifies distinct phaseless implementation usually.
-  // Here we stick to the standard implementation provided previously: Order 4 Butterworth)
   const coeffs = iirCalculator.lowpass({
-    order: 4,
+    order: 1, // 2nd order per pass
     characteristic: 'butterworth',
     Fs: sampleRate,
-    Fc: safeCutoff,
+    Fc: singlePassFc,
     preGain: true,
   })
 
-  const filter = new Fili.IirFilter(coeffs)
-  const raw = samples.map((s) => s.accelRaw)
+  // Manual forward-backward zero-phase
+  const filterFwd = new Fili.IirFilter(coeffs)
+  let data = filterFwd.multiStep(raw)
 
-  // Forward-Backward for zero phase
-  let data = filter.multiStep(raw)
-  const filterBack = new Fili.IirFilter(coeffs)
-  data = filterBack.multiStep(data.reverse()).reverse()
+  const filterBwd = new Fili.IirFilter(coeffs)
+  data = filterBwd.multiStep(data.reverse()).reverse()
 
   return data
 }

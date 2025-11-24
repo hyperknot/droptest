@@ -21,7 +21,7 @@ class UIStore {
     const [state, setState] = createStore<UIState>({
       file: null,
       config: {
-        cfc: 60, // Default CFC 60
+        cfc: 100, // Default CFC 60
         jerkWindow: 15,
         jerkPoly: 3,
       },
