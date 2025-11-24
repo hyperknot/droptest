@@ -1,13 +1,7 @@
 import { createEffect, createSignal } from 'solid-js'
-import {
-  applyBandstopAccel,
-  applyButterworthLowpassAccel,
-  applyCrashFilterCFCAccel,
-  applySavitzkyGolayAccel,
-  computeJerkSavitzkyGolayFromAccel,
-  computeMovingAverageAccel,
-} from '../lib/accel-filter'
 import { sanitizeOddWindow, sanitizePolynomial } from '../lib/filter-config'
+import { applyButterworthLowpassAccel, applyCrashFilterCFCAccel } from '../lib/filters/butterworth'
+import { applySavitzkyGolayAccel, computeJerkSavitzkyGolayFromAccel } from '../lib/filters/sg'
 import type { DropTestData, FilterConfig, SamplePoint } from '../types'
 
 export function useFilterEngine(
@@ -59,18 +53,6 @@ export function useFilterEngine(
       }
     }
 
-    if (cfg.movingAverage.enabled) {
-      const win = sanitizeOddWindow(cfg.movingAverage.windowSize, samples.length)
-      if (win != null) {
-        try {
-          const y = computeMovingAverageAccel(samples, win)
-          for (let i = 0; i < samples.length; i++) {
-            samples[i].accelMA = y[i]
-          }
-        } catch {}
-      }
-    }
-
     if (cfg.butterworth.enabled) {
       try {
         const y = applyButterworthLowpassAccel(samples, cfg.butterworth.cutoffHz, {
@@ -79,18 +61,6 @@ export function useFilterEngine(
         })
         for (let i = 0; i < samples.length; i++) {
           samples[i].accelButterworth = y[i]
-        }
-      } catch {}
-    }
-
-    if (cfg.notch.enabled) {
-      try {
-        const y = applyBandstopAccel(samples, cfg.notch.centerHz, cfg.notch.bandwidthHz, {
-          order: cfg.notch.order,
-          zeroPhase: cfg.notch.zeroPhase,
-        })
-        for (let i = 0; i < samples.length; i++) {
-          samples[i].accelNotch = y[i]
         }
       } catch {}
     }

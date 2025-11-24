@@ -1,17 +1,8 @@
 export interface SamplePoint {
   timeMs: number
-  accelG: number
-
-  accelSG: number | null
-  accelMA: number | null
-  accelButterworth: number | null
-  accelNotch: number | null
+  accelRaw: number
   accelCFC: number | null
-
-  /**
-   * Jerk derived from a single filtered acceleration series (g / s).
-   */
-  jerk: number | null
+  jerkSG: number | null
 }
 
 export interface FileMetadata {
@@ -31,23 +22,6 @@ export interface FilterConfig {
     windowSize: number
     polynomial: number
   }
-  movingAverage: {
-    enabled: boolean
-    windowSize: number
-  }
-  butterworth: {
-    enabled: boolean
-    cutoffHz: number
-    order: number
-    zeroPhase: boolean
-  }
-  notch: {
-    enabled: boolean
-    centerHz: number
-    bandwidthHz: number
-    order: number
-    zeroPhase: boolean
-  }
   cfc: {
     enabled: boolean
     cfc: number
@@ -64,5 +38,13 @@ export interface FilterConfig {
     polynomial: number
   }
 }
+
+export type AccelSeriesKey =
+  | 'accelG'
+  | 'accelSG'
+  | 'accelMA'
+  | 'accelButterworth'
+  | 'accelNotch'
+  | 'accelCFC'
 
 export type RangeCommand = { type: 'full' } | { type: 'firstHit' } | null
