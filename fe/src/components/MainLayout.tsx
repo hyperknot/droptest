@@ -13,22 +13,22 @@ export const MainLayout = () => {
 
       <aside class="w-72 bg-white border-l border-gray-200 flex flex-col p-4 gap-4 z-10 shadow-lg">
         <div>
-          <h2 class="font-bold text-lg mb-1">{f().filename}</h2>
+          <h2 class="font-bold text-lg mb-1 break-words">{f().filename}</h2>
           <div class="text-xs text-gray-500">
-             {f().samples.length.toLocaleString()} samples @ ~ {f().sampleRateHz} Hz
+            {f().samples.length.toLocaleString()} samples @ ~ {f().sampleRateHz} Hz
           </div>
         </div>
 
         <div class="flex gap-2">
           <button
-             class="flex-1 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded text-sm font-medium transition"
-             onClick={() => uiStore.setRangeRequest('full')}
+            class="flex-1 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded text-sm font-medium transition"
+            onClick={() => uiStore.setRangeRequest('full')}
           >
             Full View
           </button>
           <button
-             class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition"
-             onClick={() => uiStore.setRangeRequest('firstHit')}
+            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition"
+            onClick={() => uiStore.setRangeRequest('firstHit')}
           >
             First Hit
           </button>
@@ -42,7 +42,10 @@ export const MainLayout = () => {
               ACCEL CFC Class ({cfg().cfc})
             </label>
             <input
-              type="range" min="10" max="1000" step="10"
+              type="range"
+              min="10"
+              max="1000"
+              step="10"
               value={cfg().cfc}
               onInput={(e) => uiStore.updateConfig('cfc', Number(e.currentTarget.value))}
               class="w-full"
@@ -54,9 +57,14 @@ export const MainLayout = () => {
               JERK SG Window ({cfg().jerkWindow})
             </label>
             <input
-              type="range" min="5" max="51" step="2"
+              type="range"
+              min="5"
+              max="51"
+              step="2"
               value={cfg().jerkWindow}
-              onInput={(e) => uiStore.updateConfig('jerkWindow', Number(e.currentTarget.value))}
+              onInput={(e) =>
+                uiStore.updateConfig('jerkWindow', Number(e.currentTarget.value))
+              }
               class="w-full"
             />
           </div>
