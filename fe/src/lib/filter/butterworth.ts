@@ -85,7 +85,7 @@ import type { SamplePoint } from '../../types'
  *
  */
 
-export function butterworth(
+export function butterworthFilter(
   samples: Array<SamplePoint>,
   cutoffHz: number,
   sampleRate: number,

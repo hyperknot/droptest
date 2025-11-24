@@ -64,7 +64,7 @@ import type { SamplePoint } from '../../types'
  * @returns Array<number>
  *   Calculated Jerk values, same length as `samples`.
  */
-export function calculateJerkSG(
+export function sgFilter(
   samples: Array<SamplePoint>,
   windowMs: number,
   polyOrder: number,

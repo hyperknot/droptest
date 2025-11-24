@@ -1,8 +1,8 @@
 import { createStore, produce } from 'solid-js/store'
 import { parseRawCSV } from '../lib/csv-parser'
 import { butterworth } from '../lib/filter/butterworth'
-import { calculateJerkSG } from '../lib/filter/sg'
 import { detectOriginTime, estimateSampleRateHz } from '../lib/filter/range'
+import { calculateJerkSG } from '../lib/filter/sg'
 import type { AppConfig, DropTestFile, SamplePoint } from '../types'
 
 interface UIState {
@@ -16,7 +16,7 @@ interface UIState {
 
 class UIStore {
   state: UIState
-  private setState: (fn: (min: UIState) => void) => void
+  private readonly setState: (fn: (min: UIState) => void) => void
 
   constructor() {
     const [state, setState] = createStore<UIState>({
@@ -31,6 +31,7 @@ class UIStore {
       error: null,
     })
 
+    // eslint-disable-next-line solid/reactivity
     this.state = state
     this.setState = (fn) => setState(produce(fn))
   }
