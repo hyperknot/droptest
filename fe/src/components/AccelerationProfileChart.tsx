@@ -90,10 +90,10 @@ export const AccelerationProfileChart = () => {
     if (!chartInst || samples.length === 0) return
 
     // Calculate actual data ranges
-    let accelMin = Infinity
-    let accelMax = -Infinity
-    let jerkMin = Infinity
-    let jerkMax = -Infinity
+    let accelMin = Number.POSITIVE_INFINITY
+    let accelMax = Number.NEGATIVE_INFINITY
+    let jerkMin = Number.POSITIVE_INFINITY
+    let jerkMax = Number.NEGATIVE_INFINITY
 
     for (const s of samples) {
       const accel = s.accelFiltered ?? s.accelRaw

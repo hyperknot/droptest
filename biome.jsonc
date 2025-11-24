@@ -83,8 +83,8 @@
         "useKeyWithClickEvents": "off", // PasteBlock / Enforce to have the onClick mouse event with the onKeyUp, the onKeyDown, or the onKeyPress keyboard event.
         "noNoninteractiveElementToInteractiveRole": "off", // SessionTree
         //    "useValidAnchor": "off",
-        //    "useButtonType": "off",
-        //   "noLabelWithoutControl": "off",
+        "useButtonType": "off",
+        "noLabelWithoutControl": "off",
         //  "noSvgWithoutTitle": "off",
         // "noNoninteractiveTabindex": "off",
       },

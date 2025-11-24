@@ -15,6 +15,7 @@ export const LandingPage = () => {
             href="https://github.com/hyperknot/droptest"
             target="_blank"
             class="text-blue-600 hover:underline font-medium"
+            rel="noopener"
           >
             open source
           </a>{' '}
@@ -28,7 +29,9 @@ export const LandingPage = () => {
         }`}
       >
         <p class="text-xl font-medium mb-3">Drop a CSV drop test file here</p>
-        <p class="text-sm text-gray-500">Expected format: CSV with columns: time0, datetime, accel</p>
+        <p class="text-sm text-gray-500">
+          Expected format: CSV with columns: time0, datetime, accel
+        </p>
       </div>
 
       <Show when={uiStore.state.error}>

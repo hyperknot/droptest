@@ -35,7 +35,7 @@ const SliderControl = (props: {
       value={props.value}
       onInput={(e) => props.onChange(Number(e.currentTarget.value))}
       class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-      style={{ "accent-color": props.accentColor }}
+      style={{ 'accent-color': props.accentColor }}
     />
     {props.hint && <p class="text-[10px] text-slate-400">{props.hint}</p>}
   </div>
