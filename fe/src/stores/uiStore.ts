@@ -22,8 +22,8 @@ class UIStore {
     const [state, setState] = createStore<UIState>({
       file: null,
       config: {
-        cutoffHz: 100,
-        jerkWindow: 15,
+        cutoffHz: 160,
+        jerkWindow: 17,
         jerkPoly: 3,
       },
       rangeRequest: null,
