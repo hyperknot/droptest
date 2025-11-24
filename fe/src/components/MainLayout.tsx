@@ -6,68 +6,141 @@ export const MainLayout = () => {
   const cfg = () => uiStore.state.config
 
   return (
-    <div class="h-screen flex overflow-hidden">
-      <div class="flex-1 relative">
+    <div class="h-screen flex overflow-hidden bg-white">
+      <div class="flex-1 relative min-w-0">
         <AccelerationProfileChart />
       </div>
 
-      <aside class="w-72 bg-white border-l border-gray-200 flex flex-col p-4 gap-4 z-10 shadow-lg">
-        <div>
-          <h2 class="font-bold text-lg mb-1 break-words">{f().filename}</h2>
-          <div class="text-xs text-gray-500">
-            {f().samples.length.toLocaleString()} samples @ ~ {f().sampleRateHz} Hz
+      <aside class="w-80 bg-slate-50 border-l border-slate-200 flex flex-col overflow-y-auto z-10 shadow-xl">
+        <div class="p-4 border-b border-slate-200 bg-white">
+          <h2 class="font-bold text-lg break-words leading-tight text-slate-800">
+            {f().filename}
+          </h2>
+          <div class="mt-1 text-xs text-slate-500 font-mono">
+            {f().samples.length.toLocaleString()} pts @ {f().sampleRateHz} Hz
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 mt-3">
+            <button
+              class="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded text-xs font-semibold transition shadow-sm"
+              onClick={() => uiStore.setRangeRequest('full')}
+            >
+              Full View
+            </button>
+            <button
+              class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold transition shadow-sm"
+              onClick={() => uiStore.setRangeRequest('firstHit')}
+            >
+              First Hit Zoom
+            </button>
           </div>
         </div>
 
-        <div class="flex gap-2">
-          <button
-            class="flex-1 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded text-sm font-medium transition"
-            onClick={() => uiStore.setRangeRequest('full')}
-          >
-            Full View
-          </button>
-          <button
-            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition"
-            onClick={() => uiStore.setRangeRequest('firstHit')}
-          >
-            First Hit
-          </button>
-        </div>
+        <div class="p-4 space-y-6">
 
-        <div class="border-t pt-4 space-y-4">
-          <h3 class="font-semibold text-sm text-gray-700">Filter Settings</h3>
+          {/* RAW ACCEL */}
+          <section>
+            <div class="flex items-center gap-2 mb-2">
+              <div class="w-3 h-3 rounded-full bg-green-600"></div>
+              <h3 class="font-bold text-sm text-slate-800">Raw Acceleration</h3>
+            </div>
+            <p class="text-[11px] text-slate-500 leading-relaxed">
+              Unfiltered sensor data directly from the CSV source.
+            </p>
+          </section>
 
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">
-              ACCEL CFC Class ({cfg().cfc})
-            </label>
-            <input
-              type="range"
-              min="10"
-              max="1000"
-              step="10"
-              value={cfg().cfc}
-              onInput={(e) => uiStore.updateConfig('cfc', Number(e.currentTarget.value))}
-              class="w-full"
-            />
-          </div>
+          <hr class="border-slate-200" />
 
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">
-              JERK SG Window ({cfg().jerkWindow})
-            </label>
-            <input
-              type="range"
-              min="5"
-              max="51"
-              step="2"
-              value={cfg().jerkWindow}
-              onInput={(e) =>
-                uiStore.updateConfig('jerkWindow', Number(e.currentTarget.value))
-              }
-              class="w-full"
-            />
-          </div>
+          {/* FILTERED ACCEL */}
+          <section>
+            <div class="flex items-center gap-2 mb-2">
+              <div class="w-3 h-3 rounded-full bg-blue-600"></div>
+              <h3 class="font-bold text-sm text-slate-800">Filtered Acceleration</h3>
+            </div>
+
+            <div class="bg-white p-3 rounded border border-slate-200 text-[11px] text-slate-600 space-y-1 mb-3 shadow-sm">
+              <p><span class="font-semibold text-slate-900">Filter:</span> CFC Butterworth Low-pass</p>
+              <p><span class="font-semibold text-slate-900">Order:</span> 4 (Standard)</p>
+              <p><span class="font-semibold text-slate-900">Phase:</span> Zero-phase (Bidirectional)</p>
+            </div>
+
+            <div class="space-y-2">
+              <div class="flex justify-between items-center">
+                <label class="text-xs font-bold text-slate-700">CFC Class</label>
+                <span class="text-xs font-mono bg-slate-200 px-1.5 py-0.5 rounded">{cfg().cfc} Hz</span>
+              </div>
+              <input
+                type="range"
+                min="10"
+                max="300"
+                step="10"
+                value={cfg().cfc}
+                onInput={(e) => uiStore.updateConfig('cfc', Number(e.currentTarget.value))}
+                class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              />
+              <div class="flex justify-between text-[10px] text-slate-400 px-1">
+                <span>10</span>
+                <span>300</span>
+              </div>
+            </div>
+          </section>
+
+          <hr class="border-slate-200" />
+
+          {/* JERK */}
+          <section>
+            <div class="flex items-center gap-2 mb-2">
+              <div class="w-3 h-3 rounded-full bg-purple-600"></div>
+              <h3 class="font-bold text-sm text-slate-800">Jerk</h3>
+            </div>
+
+            <p class="text-[11px] text-slate-500 mb-3 leading-relaxed">
+              Rate of change of acceleration. Computed using the <strong class="text-slate-600">Savitzky-Golay Differentiation Filter</strong> on the CFC filtered data.
+            </p>
+
+            <div class="space-y-4">
+              {/* Window Size */}
+              <div class="space-y-1">
+                <div class="flex justify-between items-center">
+                  <label class="text-xs font-bold text-slate-700">Window Size</label>
+                  <span class="text-xs font-mono bg-slate-200 px-1.5 py-0.5 rounded">{cfg().jerkWindow} pts</span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="51"
+                  step="2"
+                  value={cfg().jerkWindow}
+                  onInput={(e) =>
+                    uiStore.updateConfig('jerkWindow', Number(e.currentTarget.value))
+                  }
+                  class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                />
+                <p class="text-[10px] text-slate-400">Data points involved in calculation.</p>
+              </div>
+
+              {/* Polynomial */}
+              <div class="space-y-1">
+                <div class="flex justify-between items-center">
+                  <label class="text-xs font-bold text-slate-700">Polynomial Order</label>
+                  <span class="text-xs font-mono bg-slate-200 px-1.5 py-0.5 rounded">{cfg().jerkPoly}</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="7"
+                  step="1"
+                  value={cfg().jerkPoly}
+                  onInput={(e) =>
+                    uiStore.updateConfig('jerkPoly', Number(e.currentTarget.value))
+                  }
+                  class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                />
+                <p class="text-[10px] text-slate-400">Degree of fitting polynomial.</p>
+              </div>
+            </div>
+          </section>
+
         </div>
       </aside>
     </div>

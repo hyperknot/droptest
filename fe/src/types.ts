@@ -13,5 +13,6 @@ export interface DropTestFile {
 
 export interface AppConfig {
   cfc: number // Hz
-  jerkWindow: number // samples
+  jerkWindow: number // samples (odd)
+  jerkPoly: number // polynomial order
 }

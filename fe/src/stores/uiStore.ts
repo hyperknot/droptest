@@ -1,13 +1,13 @@
 import { createStore, produce } from 'solid-js/store'
 import { parseRawCSV } from '../lib/csv-parser'
 import { calculateCFC, calculateJerkSG } from '../lib/filter/compute'
-import { detectOriginTime, estimateSampleRateHz, findFirstHitRange } from '../lib/filter/range'
+import { detectOriginTime, estimateSampleRateHz } from '../lib/filter/range'
 import type { AppConfig, DropTestFile, SamplePoint } from '../types'
 
 interface UIState {
   file: DropTestFile | null
   config: AppConfig
-  // Use a counter or unique ID for commands to ensure same-button clicks trigger effects
+  // Using an object with ID ensures consecutive clicks on the same button trigger the effect
   rangeRequest: { type: 'full' | 'firstHit'; id: number } | null
   isDragging: boolean
   error: string | null
@@ -21,8 +21,9 @@ class UIStore {
     const [state, setState] = createStore<UIState>({
       file: null,
       config: {
-        cfc: 100,
+        cfc: 60, // Default CFC 60
         jerkWindow: 15,
+        jerkPoly: 3,
       },
       rangeRequest: null,
       isDragging: false,
@@ -47,9 +48,9 @@ class UIStore {
 
   updateConfig(key: keyof AppConfig, val: number) {
     this.setState((s) => {
-      // simple bounds
-      if (key === 'cfc') s.config.cfc = Math.max(10, Math.min(1000, val))
-      if (key === 'jerkWindow') s.config.jerkWindow = Math.max(5, Math.min(101, val))
+      if (key === 'cfc') s.config.cfc = Math.max(10, Math.min(300, val))
+      if (key === 'jerkWindow') s.config.jerkWindow = Math.max(5, Math.min(51, val))
+      if (key === 'jerkPoly') s.config.jerkPoly = Math.max(1, Math.min(7, val))
     })
     this.applyFilters()
   }
@@ -63,14 +64,9 @@ class UIStore {
     try {
       const text = await file.text()
       const rawData = parseRawCSV(text)
-
-      // 1. Detect Sample Rate
       const rate = estimateSampleRateHz(rawData)
-
-      // 2. Detect Origin
       const origin = detectOriginTime(rawData)
 
-      // 3. Create Init Samples
       const samples: Array<SamplePoint> = rawData
         .filter((r) => r.timeMs >= origin)
         .map((r) => ({
@@ -88,10 +84,9 @@ class UIStore {
         }
       })
 
-      // 4. Run Filters
       this.applyFilters()
 
-      // 5. Set default range
+      // Trigger the zoom effect
       this.setRangeRequest('firstHit')
     } catch (e: any) {
       console.error(e)
@@ -107,19 +102,15 @@ class UIStore {
     if (!f) return
 
     try {
-      // Accel CFC
       const cfcData = calculateCFC(f.samples, c.cfc, f.sampleRateHz)
 
-      // Temp samples for Jerk calc (avoids store churn)
+      // Create temp array for Jerk calculation
       const tempSamples = f.samples.map((s, i) => ({ ...s, accelCFC: cfcData[i] }))
 
-      // Jerk SG
-      const jerkData = calculateJerkSG(tempSamples, c.jerkWindow, f.sampleRateHz)
+      const jerkData = calculateJerkSG(tempSamples, c.jerkWindow, c.jerkPoly, f.sampleRateHz)
 
-      // Update Store
       this.setState((s) => {
         if (!s.file) return
-        // We mutate the array directly for performance in the store
         for (let i = 0; i < s.file.samples.length; i++) {
           s.file.samples[i].accelCFC = cfcData[i]
           s.file.samples[i].jerkSG = jerkData[i] ?? 0

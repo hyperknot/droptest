@@ -7,7 +7,6 @@ export const AccelerationProfileChart = () => {
   let divRef: HTMLDivElement | undefined
   let chartInst: echarts.ECharts | null = null
 
-  // 1. Initialize Chart
   onMount(() => {
     if (!divRef) return
     chartInst = echarts.init(divRef)
@@ -16,9 +15,8 @@ export const AccelerationProfileChart = () => {
     window.addEventListener('resize', resize)
     onCleanup(() => window.removeEventListener('resize', resize))
 
-    // Set static/base configuration once
     chartInst.setOption({
-      animation: false, // Disable animation for snappy updates
+      animation: false,
       grid: { left: 60, right: 60, top: 30, bottom: 40 },
       tooltip: {
         trigger: 'axis',
@@ -40,7 +38,6 @@ export const AccelerationProfileChart = () => {
         min: 'dataMin',
         max: 'dataMax',
       },
-      // Define Dual Y-Axes
       yAxis: [
         {
           type: 'value',
@@ -65,36 +62,31 @@ export const AccelerationProfileChart = () => {
         {
           type: 'slider',
           bottom: 5,
-          filterMode: 'none', // Important: don't filter data, just zoom view
+          filterMode: 'none',
         },
       ],
-      // Visual Mapping for Color Ranges
       visualMap: [
         {
           show: false,
           seriesIndex: 1, // Accel CFC
-          pieces: [{ gt: -3, lt: 45, color: '#2563eb' }], // Normal Blue
-          outOfRange: { color: '#f97316' }, // Warning Orange
+          pieces: [{ gt: -3, lt: 45, color: '#2563eb' }], // Blue
+          outOfRange: { color: '#f97316' }, // Orange
         },
         {
           show: false,
           seriesIndex: 2, // Jerk
-          pieces: [{ gt: -4000, lt: 4000, color: '#a855f7' }], // Normal Purple
-          outOfRange: { color: '#ef4444' }, // Warning Red
+          pieces: [{ gt: -4000, lt: 4000, color: '#a855f7' }], // Purple
+          outOfRange: { color: '#ef4444' }, // Red
         },
       ],
     })
   })
 
-  // 2. Handle Data Updates (Filters changed)
-  // This effect runs whenever file contents change (e.g. after dragging slider)
-  // We specifically DO NOT touch dataZoom here to preserve user's zoom level.
+  // DATA UPDATE
   createEffect(() => {
     const file = uiStore.state.file
     if (!chartInst || !file) return
 
-    // Create references to avoid deep proxy usage inside the heavy map loop if possible
-    // (Though regular SolidJS stores handle this well enough for this data size)
     const samples = file.samples
 
     chartInst.setOption({
@@ -104,8 +96,8 @@ export const AccelerationProfileChart = () => {
           type: 'line',
           yAxisIndex: 0,
           showSymbol: false,
-          // Gray, slightly thinner, semi-transparent to not block CFC
-          lineStyle: { color: '#94a3b8', width: 1, opacity: 0.6 },
+          // Bright Green for Raw
+          lineStyle: { color: '#16a34a', width: 1.5, opacity: 0.5 },
           data: samples.map((s) => [s.timeMs, s.accelRaw]),
           z: 1,
         },
@@ -137,38 +129,33 @@ export const AccelerationProfileChart = () => {
     })
   })
 
-  // 3. Handle Explicit Range Commands (First Hit / Full View)
-  // This only runs when the user clicks a button or a new file loads
+  // RANGE COMMAND (Zoom)
   createEffect(() => {
     const cmd = uiStore.state.rangeRequest
     const file = uiStore.state.file
     if (!chartInst || !cmd || !file) return
 
-    let startPercent = 0
-    let endPercent = 100
+    let start = 0
+    let end = 100
 
-    if (cmd === 'firstHit') {
+    // Check the type properly
+    if (cmd.type === 'firstHit') {
       const range = findFirstHitRange(file.samples)
-      if (range && file.samples.length > 0) {
-        const lastMs = file.samples[file.samples.length - 1].timeMs
-        if (lastMs > 0) {
-          startPercent = (range.min / lastMs) * 100
-          endPercent = (range.max / lastMs) * 100
+      // Only apply if we found a valid hit range
+      if (range) {
+        const lastT = file.samples[file.samples.length - 1].timeMs
+        if (lastT > 0) {
+          start = (range.min / lastT) * 100
+          end = (range.max / lastT) * 100
         }
       }
     }
 
     chartInst.dispatchAction({
       type: 'dataZoom',
-      start: Math.max(0, startPercent),
-      end: Math.min(100, endPercent),
+      start,
+      end,
     })
-
-    // Acknowledge command handled
-    // (Deferring to next tick or just creating this effect is fine)
-    // We don't necessarily need to "null" it out immediately in the store
-    // unless we want to support re-clicking the same button.
-    // For now, we'll leave it, but to support re-clicks, buttons usually set state.
   })
 
   return <div ref={divRef} class="w-full h-full" />

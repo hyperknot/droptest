@@ -16,7 +16,6 @@
   "dependencies": {
     "@kobalte/core": "^0.13.11",
     "echarts": "^6.0.0",
-    "fft.js": "^4.0.4",
     "fili": "^2.0.3",
     "igc-parser": "^2.0.0",
     "lucide-solid": "^0.548.0",
