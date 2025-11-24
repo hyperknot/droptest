@@ -85,7 +85,7 @@ import type { SamplePoint } from '../../types'
  *
  */
 
-export function butterworthZeroPhaseAccel(
+export function butterworth(
   samples: Array<SamplePoint>,
   cutoffHz: number,
   sampleRate: number,
