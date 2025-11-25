@@ -1,4 +1,4 @@
-import { For, type ParentComponent } from 'solid-js'
+import { For } from 'solid-js'
 import { uiStore } from '../stores/uiStore'
 import { AccelerationProfileChart } from './AccelerationProfileChart'
 
@@ -19,7 +19,6 @@ const SliderControl = (props: {
   unit: string
   accentColor: string
   onChange: (v: number) => void
-  hint?: string
 }) => (
   <div class="space-y-1 mt-2">
     <div class="flex justify-between items-center">
@@ -38,14 +37,15 @@ const SliderControl = (props: {
       class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
       style={{ 'accent-color': props.accentColor }}
     />
-    {props.hint && <p class="text-[10px] text-slate-400">{props.hint}</p>}
   </div>
 )
 
-// Simple human-readable text box with bold support via children
-const InfoBox: ParentComponent = (props) => (
-  <div class="bg-white p-3 rounded border border-slate-200 text-xs text-slate-600 mb-3 shadow-sm leading-relaxed">
-    {props.children}
+// Compact algorithm/parameter summary (no key–value pairs, no prose paragraph)
+const AlgorithmInfo = (props: { lines: Array<string> }) => (
+  <div class="bg-white p-3 rounded border border-slate-200 text-[11px] text-slate-700 mb-3 shadow-sm">
+    <div class="font-mono leading-snug space-y-0.5">
+      <For each={props.lines}>{(line) => <div>{line}</div>}</For>
+    </div>
   </div>
 )
 
@@ -61,25 +61,18 @@ export const MainLayout = () => {
       <aside class="w-80 bg-slate-50 border-l border-slate-200 flex flex-col overflow-y-auto z-10 shadow-xl">
         {/* Header */}
         <div class="p-4 border-b border-slate-200 bg-white">
-          <h2 class="font-bold text-lg break-words leading-tight text-slate-800">
-            {state().filename}
-          </h2>
-          <div class="mt-1 text-xs text-slate-500 font-mono">
-            {state().samples.length.toLocaleString()} pts @ {state().sampleRateHz} Hz
-          </div>
-
-          <div class="grid grid-cols-2 gap-2 mt-3">
-            <button
-              class="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded text-xs font-semibold transition shadow-sm"
-              onClick={() => uiStore.setRangeRequest('full')}
-            >
-              Full View
-            </button>
+          <div class="grid grid-cols-2 gap-2">
             <button
               class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold transition shadow-sm"
               onClick={() => uiStore.setRangeRequest('firstHit')}
             >
               First Hit Zoom
+            </button>
+            <button
+              class="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded text-xs font-semibold transition shadow-sm"
+              onClick={() => uiStore.setRangeRequest('full')}
+            >
+              Full View
             </button>
           </div>
         </div>
@@ -88,10 +81,13 @@ export const MainLayout = () => {
           {/* Raw Accel Section */}
           <section>
             <SectionHeader colorClass="bg-green-600" title="Raw Acceleration" />
-            <InfoBox>
-              <span class="font-bold text-slate-900">Raw CSV Input</span>. Unprocessed acceleration
-              data directly from source file.
-            </InfoBox>
+            <AlgorithmInfo
+              lines={[
+                `source: ${state().filename}`,
+                `${state().samples.length.toLocaleString()} pts @ ${state().sampleRateHz} Hz`,
+                'channel: raw accelerometer, no filtering',
+              ]}
+            />
           </section>
 
           <hr class="border-slate-200" />
@@ -99,10 +95,13 @@ export const MainLayout = () => {
           {/* Filtered Accel Section */}
           <section>
             <SectionHeader colorClass="bg-blue-600" title="Filtered Acceleration" />
-            <InfoBox>
-              <span class="font-bold text-slate-900">Butterworth Low-Pass</span>. Runs zero-phase
-              (forward-backward). Uses a 2nd-order design (CFC compatible).
-            </InfoBox>
+            <AlgorithmInfo
+              lines={[
+                'Butterworth low-pass, zero-phase (filtfilt)',
+                'order=1  →  2nd-order per pass (4th-order magnitude)',
+                `cutoff=${state().accelCutoffHz} Hz`,
+              ]}
+            />
 
             <SliderControl
               label="Cutoff Frequency"
@@ -113,7 +112,6 @@ export const MainLayout = () => {
               unit="Hz"
               accentColor="#2563eb"
               onChange={(v) => uiStore.setAccelCutoffHz(v)}
-              hint="Frequencies above this value are attenuated."
             />
           </section>
 
@@ -122,10 +120,13 @@ export const MainLayout = () => {
           {/* Jerk Section */}
           <section>
             <SectionHeader colorClass="bg-purple-600" title="Jerk" />
-            <InfoBox>
-              <span class="font-bold text-slate-900">Savitzky-Golay</span>. Uses Polynomial Order 3
-              to calculate the 1st derivative (G/s).
-            </InfoBox>
+            <AlgorithmInfo
+              lines={[
+                'Savitzky–Golay derivative (jerk)',
+                `window=${state().jerkWindowMs} ms`,
+                'polyOrder=3, deriv=1  →  units: G/s',
+              ]}
+            />
 
             <SliderControl
               label="Window Size"
@@ -136,7 +137,6 @@ export const MainLayout = () => {
               unit="ms"
               accentColor="#a855f7"
               onChange={(v) => uiStore.setJerkWindowMs(v)}
-              hint="Larger windows are smoother but may hide sharp spikes."
             />
           </section>
         </div>
