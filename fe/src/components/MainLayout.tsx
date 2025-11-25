@@ -1,3 +1,4 @@
+import { For, type ParentComponent } from 'solid-js'
 import { uiStore } from '../stores/uiStore'
 import { AccelerationProfileChart } from './AccelerationProfileChart'
 
@@ -20,7 +21,7 @@ const SliderControl = (props: {
   onChange: (v: number) => void
   hint?: string
 }) => (
-  <div class="space-y-1">
+  <div class="space-y-1 mt-2">
     <div class="flex justify-between items-center">
       <label class="text-xs font-bold text-slate-700">{props.label}</label>
       <span class="text-xs font-mono bg-slate-200 px-1.5 py-0.5 rounded">
@@ -41,8 +42,9 @@ const SliderControl = (props: {
   </div>
 )
 
-const InfoBox = (props: { children: any }) => (
-  <div class="bg-white p-3 rounded border border-slate-200 text-[11px] text-slate-600 space-y-1 mb-3 shadow-sm">
+// Simple human-readable text box with bold support via children
+const InfoBox: ParentComponent = (props) => (
+  <div class="bg-white p-3 rounded border border-slate-200 text-xs text-slate-600 mb-3 shadow-sm leading-relaxed">
     {props.children}
   </div>
 )
@@ -86,9 +88,10 @@ export const MainLayout = () => {
           {/* Raw Accel Section */}
           <section>
             <SectionHeader colorClass="bg-green-600" title="Raw Acceleration" />
-            <p class="text-[11px] text-slate-500 leading-relaxed">
-              Unfiltered sensor data directly from the CSV source.
-            </p>
+            <InfoBox>
+              <span class="font-bold text-slate-900">Raw CSV Input</span>. Unprocessed acceleration
+              data directly from source file.
+            </InfoBox>
           </section>
 
           <hr class="border-slate-200" />
@@ -97,17 +100,8 @@ export const MainLayout = () => {
           <section>
             <SectionHeader colorClass="bg-blue-600" title="Filtered Acceleration" />
             <InfoBox>
-              <p>
-                <span class="font-semibold text-slate-900">Algorithm:</span> Butterworth
-                (Zero-phase)
-              </p>
-              <p>
-                <span class="font-semibold text-slate-900">Type:</span> Digital Low-pass
-              </p>
-              <p class="pt-1 italic text-slate-500">
-                Bidirectional (zero-phase) Butterworth filter, compatible with CFC industry standard
-                for automotive crash testing.
-              </p>
+              <span class="font-bold text-slate-900">Butterworth Low-Pass</span>. Runs zero-phase
+              (forward-backward). Uses a 2nd-order design (CFC compatible).
             </InfoBox>
 
             <SliderControl
@@ -119,11 +113,8 @@ export const MainLayout = () => {
               unit="Hz"
               accentColor="#2563eb"
               onChange={(v) => uiStore.setAccelCutoffHz(v)}
+              hint="Frequencies above this value are attenuated."
             />
-            <div class="flex justify-between text-[10px] text-slate-400 px-1 mt-1">
-              <span>10 Hz</span>
-              <span>450 Hz</span>
-            </div>
           </section>
 
           <hr class="border-slate-200" />
@@ -131,22 +122,21 @@ export const MainLayout = () => {
           {/* Jerk Section */}
           <section>
             <SectionHeader colorClass="bg-purple-600" title="Jerk" />
-            <p class="text-[11px] text-slate-500 mb-3 leading-relaxed">
-              Rate of change of acceleration. Computed using the{' '}
-              <strong class="text-slate-600">Savitzky-Golay Differentiation Filter</strong> on the
-              filtered data.
-            </p>
+            <InfoBox>
+              <span class="font-bold text-slate-900">Savitzky-Golay</span>. Uses Polynomial Order 3
+              to calculate the 1st derivative (G/s).
+            </InfoBox>
 
             <SliderControl
               label="Window Size"
               value={state().jerkWindowMs}
               min={5}
-              max={50}
-              step={1}
+              max={51}
+              step={2}
               unit="ms"
               accentColor="#a855f7"
               onChange={(v) => uiStore.setJerkWindowMs(v)}
-              hint="Time window for SG filter calculation."
+              hint="Larger windows are smoother but may hide sharp spikes."
             />
           </section>
         </div>

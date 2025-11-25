@@ -32,7 +32,7 @@ class UIStore {
       samples: [],
 
       accelCutoffHz: 160,
-      jerkWindowMs: 17,
+      jerkWindowMs: 15,
 
       rangeRequest: null,
       isDragging: false,
