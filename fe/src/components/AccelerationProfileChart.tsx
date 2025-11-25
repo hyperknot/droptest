@@ -202,7 +202,11 @@ export const AccelerationProfileChart = () => {
   // RANGE COMMAND (Zoom)
   createEffect(() => {
     const cmd = uiStore.state.rangeRequest
+    void cmd?.id // super important for refresh tracking
+
     const samples = uiStore.state.samples
+    // We explicitly check cmd here. Since setRangeRequest uses { id: Date.now() },
+    // this object reference changes every time the button is clicked, triggering this effect.
     if (!chartInst || !cmd || samples.length === 0) return
 
     let start = 0
@@ -223,10 +227,13 @@ export const AccelerationProfileChart = () => {
       }
     }
 
-    chartInst.dispatchAction({
-      type: 'dataZoom',
-      start,
-      end,
+    chartInst.setOption({
+      dataZoom: [
+        {
+          start,
+          end,
+        },
+      ],
     })
   })
 
