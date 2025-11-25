@@ -5,7 +5,7 @@ import { uiStore } from '../stores/uiStore'
 
 // Default view ranges (will auto-expand to fit all data)
 const ACCEL_DEFAULT_MIN = -5
-const ACCEL_DEFAULT_MAX = 42
+const ACCEL_DEFAULT_MAX = 46
 const JERK_DEFAULT_MIN = -5000
 const JERK_DEFAULT_MAX = 5000
 

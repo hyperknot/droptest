@@ -5,9 +5,16 @@ export const LandingPage = () => {
   return (
     <div class="max-w-4xl mx-auto py-16 px-6 space-y-8">
       <header class="space-y-4">
-        <h1 class="text-4xl font-bold tracking-tight">Harness Drop Test Data Visualizer</h1>
+        <h1 class="text-4xl font-bold tracking-tight">Paragliding Harness Drop Test Visualizer</h1>
         <p class="text-lg text-gray-600">
           Visualize and analyze real-world drop test data from harness back protectors.
+        </p>
+
+        <p class="text-gray-600">
+          <strong>100% Private:</strong> All processing happens locally in your browser. Nothing is
+          sent over the internet.
+          <br />
+          You can even turn off your Wi-Fi to test.
         </p>
         <p class="text-gray-600">
           This is an{' '}

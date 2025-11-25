@@ -31,7 +31,7 @@ class UIStore {
       sampleRateHz: 1000,
       samples: [],
 
-      accelCutoffHz: 160,
+      accelCutoffHz: 150,
       jerkWindowMs: 15,
 
       rangeRequest: null,

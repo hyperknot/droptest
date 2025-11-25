@@ -1,7 +1,7 @@
 # Droptest
 
-## Overview
+### Paragliding Harness Drop Test Visualizer
 
-Drop test CSV filtering experiment
+---
 
-droptest.hyperknot.com
+**Live website:** [droptest.hyperknot.com](http://droptest.hyperknot.com)

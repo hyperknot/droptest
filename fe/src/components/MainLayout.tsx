@@ -85,7 +85,8 @@ export const MainLayout = () => {
               lines={[
                 `source: ${state().filename}`,
                 `${state().samples.length.toLocaleString()} pts @ ${state().sampleRateHz} Hz`,
-                'channel: raw accelerometer, no filtering',
+                'channel: raw accelerometer',
+                'no filtering',
               ]}
             />
           </section>
@@ -122,9 +123,9 @@ export const MainLayout = () => {
             <SectionHeader colorClass="bg-purple-600" title="Jerk" />
             <AlgorithmInfo
               lines={[
-                'Savitzky–Golay derivative (jerk)',
-                `window=${state().jerkWindowMs} ms`,
+                'Savitzky–Golay derivative',
                 'polyOrder=3, deriv=1  →  units: G/s',
+                `window=${state().jerkWindowMs} ms`,
               ]}
             />
 
