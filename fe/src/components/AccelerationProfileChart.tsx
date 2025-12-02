@@ -23,64 +23,6 @@ const COLOR_RAW = '#16a34a' // Green
 export const AccelerationProfileChart = () => {
   let divRef: HTMLDivElement | undefined
   let chartInst: echarts.ECharts | null = null
-  let currentZoom = { start: 0, end: 100 }
-
-  /**
-   * Recompute peak filtered acceleration and jerk for the current zoom window.
-   * - startPercent / endPercent: 0–100 slider percentages.
-   * - Uses accelFiltered (max positive) and |jerkSG| (max magnitude) inside time window.
-   */
-  const recomputePeaksForZoom = (startPercent: number, endPercent: number) => {
-    const samples = uiStore.state.processedSamples
-    if (samples.length === 0) {
-      uiStore.setVisiblePeaks(null, null, null)
-      return
-    }
-
-    const firstT = samples[0].timeMs
-    const lastT = samples[samples.length - 1].timeMs
-
-    if (!Number.isFinite(firstT) || !Number.isFinite(lastT) || lastT <= firstT) {
-      uiStore.setVisiblePeaks(null, null, null)
-      return
-    }
-
-    // Clamp and normalize percentages
-    const sClamped = Math.max(0, Math.min(100, startPercent))
-    const eClamped = Math.max(0, Math.min(100, endPercent))
-    const s = Math.min(sClamped, eClamped)
-    const e = Math.max(sClamped, eClamped)
-
-    const tMin = firstT + ((lastT - firstT) * s) / 100
-    const tMax = firstT + ((lastT - firstT) * e) / 100
-
-    let peakAccel = Number.NEGATIVE_INFINITY
-    let peakJerk = Number.NEGATIVE_INFINITY
-
-    for (let i = 0; i < samples.length; i++) {
-      const t = samples[i].timeMs
-      if (t < tMin || t > tMax) continue
-
-      const a = samples[i].accelFiltered
-      if (Number.isFinite(a) && a > peakAccel) {
-        peakAccel = a
-      }
-
-      // Peak jerk as maximum magnitude (G/sec)
-      const jAbs = Math.abs(samples[i].jerkSG)
-      if (Number.isFinite(jAbs) && jAbs > peakJerk) {
-        peakJerk = jAbs
-      }
-    }
-
-    const range = { min: tMin, max: tMax }
-
-    uiStore.setVisiblePeaks(
-      range,
-      Number.isFinite(peakAccel) ? peakAccel : null,
-      Number.isFinite(peakJerk) ? peakJerk : null,
-    )
-  }
 
   onMount(() => {
     if (!divRef) return
@@ -88,17 +30,26 @@ export const AccelerationProfileChart = () => {
 
     const resize = () => chartInst?.resize()
     window.addEventListener('resize', resize)
+    onCleanup(() => window.removeEventListener('resize', resize))
 
-    const handleDataZoom = (event: any) => {
-      const payload = event?.batch?.[0] ?? event ?? {}
-      const start = typeof payload.start === 'number' ? payload.start : currentZoom.start
-      const end = typeof payload.end === 'number' ? payload.end : currentZoom.end
+    // Listen to zoom changes and update visible range in store
+    chartInst.on('datazoom', () => {
+      const samples = uiStore.state.processedSamples
+      if (samples.length === 0) return
 
-      currentZoom = { start, end }
-      recomputePeaksForZoom(start, end)
-    }
+      const option = chartInst!.getOption() as any
+      const zoom = option.dataZoom?.[0]
+      if (!zoom || zoom.start == null || zoom.end == null) return
 
-    chartInst.on('dataZoom', handleDataZoom)
+      const minT = samples[0].timeMs
+      const maxT = samples[samples.length - 1].timeMs
+      const duration = maxT - minT
+
+      const visMin = minT + (zoom.start / 100) * duration
+      const visMax = minT + (zoom.end / 100) * duration
+
+      uiStore.setVisibleTimeRange(visMin, visMax)
+    })
 
     chartInst.setOption({
       animation: false,
@@ -163,15 +114,6 @@ export const AccelerationProfileChart = () => {
           filterMode: 'none',
         },
       ],
-    })
-
-    onCleanup(() => {
-      window.removeEventListener('resize', resize)
-      if (chartInst) {
-        chartInst.off('dataZoom', handleDataZoom)
-        chartInst.dispose()
-        chartInst = null
-      }
     })
   })
 
@@ -272,9 +214,6 @@ export const AccelerationProfileChart = () => {
         },
       ],
     })
-
-    // Update peaks for current zoom window whenever data changes
-    recomputePeaksForZoom(currentZoom.start, currentZoom.end)
   })
 
   // RANGE COMMAND (Zoom)
@@ -303,8 +242,6 @@ export const AccelerationProfileChart = () => {
       }
     }
 
-    currentZoom = { start, end }
-
     chartInst.setOption({
       dataZoom: [
         {
@@ -313,9 +250,6 @@ export const AccelerationProfileChart = () => {
         },
       ],
     })
-
-    // Also recompute peaks for this programmatically-set zoom
-    recomputePeaksForZoom(start, end)
   })
 
   return <div ref={divRef} class="w-full h-full" />

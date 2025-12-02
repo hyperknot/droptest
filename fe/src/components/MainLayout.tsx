@@ -1,4 +1,4 @@
-import { For, Show } from 'solid-js'
+import { For } from 'solid-js'
 import { uiStore } from '../stores/uiStore'
 import { AccelerationProfileChart } from './AccelerationProfileChart'
 
@@ -49,41 +49,41 @@ const AlgorithmInfo = (props: { lines: Array<string> }) => (
   </div>
 )
 
+// Peak values display for visible range
+const PeakStats = () => {
+  const peakAccel = () => uiStore.state.peakAccel
+  const peakJerk = () => uiStore.state.peakJerk
+
+  return (
+    <div class="flex gap-8 px-4 py-2.5 bg-white border-b border-slate-200">
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-medium text-slate-600">Peak Acceleration (G):</span>
+        <span class="text-lg font-mono font-bold text-blue-600">
+          {peakAccel() != null ? peakAccel()!.toFixed(1) : '—'}
+        </span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-medium text-slate-600">Peak Jerk (G/sec):</span>
+        <span class="text-lg font-mono font-bold text-purple-600">
+          {peakJerk() != null ? Math.round(peakJerk()!) : '—'}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export const MainLayout = () => {
   const state = () => uiStore.state
 
   return (
     <div class="h-screen flex overflow-hidden bg-white">
-      {/* Left: Peak metrics header + chart */}
       <div class="flex-1 flex flex-col min-w-0">
-        <Show when={state().processedSamples.length > 0}>
-          <div class="border-b border-slate-200 bg-white px-4 py-2 flex items-center gap-8">
-            <div>
-              <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Peak Acceleration (G)
-              </div>
-              <div class="text-xl font-mono text-blue-600">
-                {state().visiblePeakAccelG != null ? state().visiblePeakAccelG.toFixed(1) : '–'}
-              </div>
-            </div>
-
-            <div>
-              <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Peak Jerk (G/sec)
-              </div>
-              <div class="text-xl font-mono text-purple-600">
-                {state().visiblePeakJerkGs != null ? state().visiblePeakJerkGs.toFixed(0) : '–'}
-              </div>
-            </div>
-          </div>
-        </Show>
-
-        <div class="flex-1 relative min-w-0">
+        <PeakStats />
+        <div class="flex-1 min-h-0 relative">
           <AccelerationProfileChart />
         </div>
       </div>
 
-      {/* Right: Controls sidebar */}
       <aside class="w-80 bg-slate-50 border-l border-slate-200 flex flex-col overflow-y-auto z-10 shadow-xl">
         {/* Header */}
         <div class="p-4 border-b border-slate-200 bg-white">

@@ -20,10 +20,10 @@ interface UIState {
   accelCutoffHz: number // Hz
   jerkWindowMs: number // ms
 
-  // Derived metrics for current chart view
-  viewRangeMs: { min: number; max: number } | null
-  visiblePeakAccelG: number | null
-  visiblePeakJerkGs: number | null
+  // Visible range and computed peaks
+  visibleTimeRange: { min: number; max: number } | null
+  peakAccel: number | null
+  peakJerk: number | null
 
   // UI state
   rangeRequest: { type: 'full' | 'firstHit'; id: number } | null
@@ -68,6 +68,8 @@ function processRawSamples(
     return []
   }
 
+  // Optional: ensure interior is valid; if not, you can throw or skip.
+  // Here we just skip any weird interior points (should not happen in practice).
   const t0 = rawSamples[start].timeMs
   const out: Array<ProcessedSample> = []
 
@@ -102,9 +104,9 @@ class UIStore {
       accelCutoffHz: 150,
       jerkWindowMs: 15,
 
-      viewRangeMs: null,
-      visiblePeakAccelG: null,
-      visiblePeakJerkGs: null,
+      visibleTimeRange: null,
+      peakAccel: null,
+      peakJerk: null,
 
       rangeRequest: null,
       isDragging: false,
@@ -124,14 +126,9 @@ class UIStore {
     this.setState('rangeRequest', { type, id: Date.now() })
   }
 
-  setVisiblePeaks(
-    range: { min: number; max: number } | null,
-    peakAccelG: number | null,
-    peakJerkGs: number | null,
-  ) {
-    this.setState('viewRangeMs', range)
-    this.setState('visiblePeakAccelG', peakAccelG)
-    this.setState('visiblePeakJerkGs', peakJerkGs)
+  setVisibleTimeRange(min: number, max: number) {
+    this.setState('visibleTimeRange', { min, max })
+    this.recomputePeaks()
   }
 
   setAccelCutoffHz(val: number) {
@@ -151,7 +148,9 @@ class UIStore {
     this.setState('filename', null)
     this.setState('rawSamples', [])
     this.setState('processedSamples', [])
-    this.setVisiblePeaks(null, null, null)
+    this.setState('visibleTimeRange', null)
+    this.setState('peakAccel', null)
+    this.setState('peakJerk', null)
 
     try {
       const text = await file.text()
@@ -181,7 +180,6 @@ class UIStore {
     } catch (e: any) {
       console.error(e)
       this.setState('error', e?.message || 'Failed to parse file')
-      this.setVisiblePeaks(null, null, null)
     }
   }
 
@@ -190,7 +188,9 @@ class UIStore {
 
     if (rawSamples.length === 0) {
       this.setState('processedSamples', [])
-      this.setVisiblePeaks(null, null, null)
+      this.setState('visibleTimeRange', null)
+      this.setState('peakAccel', null)
+      this.setState('peakJerk', null)
       return
     }
 
@@ -198,14 +198,54 @@ class UIStore {
       const processed = processRawSamples(rawSamples, sampleRateHz, accelCutoffHz, jerkWindowMs)
       this.setState('processedSamples', processed)
 
-      if (processed.length === 0) {
-        this.setVisiblePeaks(null, null, null)
+      // Initialize visible range to full extent, then recompute peaks
+      if (processed.length > 0) {
+        const minT = processed[0].timeMs
+        const maxT = processed[processed.length - 1].timeMs
+        this.setState('visibleTimeRange', { min: minT, max: maxT })
       }
+
+      this.recomputePeaks()
     } catch (err: any) {
       console.error('Filter calculation error', err)
       this.setState('error', err?.message || 'Filter calculation error')
       this.setState('processedSamples', [])
-      this.setVisiblePeaks(null, null, null)
+      this.setState('visibleTimeRange', null)
+      this.setState('peakAccel', null)
+      this.setState('peakJerk', null)
+    }
+  }
+
+  private recomputePeaks() {
+    const { processedSamples, visibleTimeRange } = this.state
+
+    if (processedSamples.length === 0 || !visibleTimeRange) {
+      this.setState('peakAccel', null)
+      this.setState('peakJerk', null)
+      return
+    }
+
+    let peakAccel = Number.NEGATIVE_INFINITY
+    let peakJerk = 0
+
+    for (const s of processedSamples) {
+      if (s.timeMs >= visibleTimeRange.min && s.timeMs <= visibleTimeRange.max) {
+        if (s.accelFiltered > peakAccel) {
+          peakAccel = s.accelFiltered
+        }
+        const absJerk = Math.abs(s.jerkSG)
+        if (absJerk > peakJerk) {
+          peakJerk = absJerk
+        }
+      }
+    }
+
+    if (peakAccel === Number.NEGATIVE_INFINITY) {
+      this.setState('peakAccel', null)
+      this.setState('peakJerk', null)
+    } else {
+      this.setState('peakAccel', peakAccel)
+      this.setState('peakJerk', peakJerk)
     }
   }
 }
