@@ -55,15 +55,15 @@ const PeakStats = () => {
   const peakJerk = () => uiStore.state.peakJerk
 
   return (
-    <div class="flex gap-8 px-4 py-2.5 bg-white border-b border-slate-200">
+    <div class="flex justify-center gap-8 px-4 py-2.5 bg-white border-b border-slate-200">
       <div class="flex items-center gap-2">
-        <span class="text-sm font-medium text-slate-600">Peak Acceleration (G):</span>
+        <span class="text-sm font-medium text-slate-600">Max Acceleration (G):</span>
         <span class="text-lg font-mono font-bold text-blue-600">
           {peakAccel() != null ? peakAccel()!.toFixed(1) : '—'}
         </span>
       </div>
       <div class="flex items-center gap-2">
-        <span class="text-sm font-medium text-slate-600">Peak Jerk (G/sec):</span>
+        <span class="text-sm font-medium text-slate-600">Max Jerk (G/sec):</span>
         <span class="text-lg font-mono font-bold text-purple-600">
           {peakJerk() != null ? Math.round(peakJerk()!) : '—'}
         </span>
