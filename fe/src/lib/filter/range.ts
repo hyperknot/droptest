@@ -1,4 +1,4 @@
-import type { SamplePoint } from '../../types'
+import type { ProcessedSample, RawSample } from '../../types'
 
 export interface TimeRange {
   min: number
@@ -6,19 +6,17 @@ export interface TimeRange {
 }
 
 /**
- * Estimate sample rate from time series data.
- * @throws Error if fewer than 10 points or zero time delta.
+ * Estimate sample rate from RawSample data.
  */
-export function estimateSampleRateHz(points: Array<{ timeMs: number }>): number {
-  if (points.length < 10) {
-    throw new Error(`Need at least 10 points to estimate sample rate, got ${points.length}`)
+export function estimateSampleRateHz(samples: Array<RawSample>): number {
+  if (samples.length < 10) {
+    throw new Error(`Need at least 10 points to estimate sample rate, got ${samples.length}`)
   }
 
-  // Average the first few deltas for stability
-  const limit = Math.min(points.length - 1, 10)
+  const limit = Math.min(samples.length - 1, 10)
   let sumDt = 0
   for (let i = 0; i < limit; i++) {
-    sumDt += points[i + 1].timeMs - points[i].timeMs
+    sumDt += samples[i + 1].timeMs - samples[i].timeMs
   }
   const avgDt = sumDt / limit
 
@@ -31,42 +29,49 @@ export function estimateSampleRateHz(points: Array<{ timeMs: number }>): number 
 
 /**
  * Detects where the "event" starts (origin time) based on free-fall logic.
- * Uses filtered acceleration for reliable detection.
- * Looks for first point with accel < -0.5g (freefall indicator).
+ *
+ * - Uses a separate, precomputed filtered acceleration just for this purpose.
+ * - Both arrays must be the same length.
  */
-export function detectOriginTime(data: Array<{ timeMs: number; accel: number }>): number {
-  if (data.length === 0) return 0
+export function detectOriginTime(
+  rawSamples: Array<RawSample>,
+  filteredAccel: Array<number>,
+): number {
+  if (rawSamples.length === 0) return 0
+  if (rawSamples.length !== filteredAccel.length) {
+    throw new Error('rawSamples and filteredAccel must have the same length')
+  }
 
   const threshold = -0.5
   const preEventBufferMs = 200
 
-  // With filtered data, first crossing is reliable - no sustained check needed
-  const triggerIdx = data.findIndex((d) => d.accel < threshold)
-  if (triggerIdx === -1) return data[0].timeMs
+  let triggerIdx = -1
+  for (let i = 0; i < rawSamples.length; i++) {
+    if (filteredAccel[i] < threshold) {
+      triggerIdx = i
+      break
+    }
+  }
 
-  return Math.max(data[0].timeMs, data[triggerIdx].timeMs - preEventBufferMs)
+  if (triggerIdx === -1) return rawSamples[0].timeMs
+
+  const triggerTime = rawSamples[triggerIdx].timeMs
+  return Math.max(rawSamples[0].timeMs, triggerTime - preEventBufferMs)
 }
 
 /**
  * Find the time range around the first impact peak.
- * Uses filtered acceleration data.
- * @throws Error if filtered data is not available.
+ * Uses ProcessedSample (requires accelFiltered).
  */
-export function findFirstHitRange(samples: Array<SamplePoint>): TimeRange | null {
+export function findFirstHitRange(samples: Array<ProcessedSample>): TimeRange | null {
   if (samples.length === 0) return null
-
-  for (let i = 0; i < samples.length; i++) {
-    if (samples[i].accelFiltered == null) {
-      throw new Error(`Sample at index ${i} is missing filtered acceleration data`)
-    }
-  }
 
   let peakVal = Number.NEGATIVE_INFINITY
   let peakIdx = -1
 
   // Find peak (> 10G threshold)
   for (let i = 0; i < samples.length; i++) {
-    const v = samples[i].accelFiltered!
+    const v = samples[i].accelFiltered
     if (v > 10 && v > peakVal) {
       peakVal = v
       peakIdx = i

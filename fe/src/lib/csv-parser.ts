@@ -1,8 +1,10 @@
+import type { RawSample } from '../types'
+
 /**
  * Pure CSV Parsing. Returns flat, raw data.
  * Expects columns: time0 (seconds), accel (g)
  */
-export function parseRawCSV(text: string): Array<{ timeMs: number; accel: number }> {
+export function parseRawCSV(text: string): Array<RawSample> {
   const lines = text
     .split('\n')
     .map((l) => l.trim())
@@ -18,7 +20,7 @@ export function parseRawCSV(text: string): Array<{ timeMs: number; accel: number
   const colAccel = headers.indexOf('accel')
   const colTime = headers.indexOf('time0')
 
-  const rawOut: Array<{ timeMs: number; accel: number }> = []
+  const rawOut: Array<RawSample> = []
 
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const parts = lines[i].split(',')
@@ -29,7 +31,7 @@ export function parseRawCSV(text: string): Array<{ timeMs: number; accel: number
 
     if (!Number.isFinite(accel) || !Number.isFinite(timeSec)) continue
 
-    rawOut.push({ timeMs: timeSec * 1000, accel })
+    rawOut.push({ timeMs: timeSec * 1000, accelRaw: accel })
   }
 
   if (rawOut.length === 0) throw new Error('No valid data rows found')

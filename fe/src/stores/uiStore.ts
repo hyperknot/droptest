@@ -3,15 +3,20 @@ import { parseRawCSV } from '../lib/csv-parser'
 import { butterworthFilter } from '../lib/filter/butterworth'
 import { detectOriginTime, estimateSampleRateHz } from '../lib/filter/range'
 import { sgFilter } from '../lib/filter/sg'
-import type { SamplePoint } from '../types'
+import type { ProcessedSample, RawSample } from '../types'
 
 interface UIState {
-  // File data (flattened from DropTestFile)
+  // File data
   filename: string | null
   sampleRateHz: number
-  samples: Array<SamplePoint>
 
-  // Config (flattened from AppConfig, renamed)
+  // Raw, origin-trimmed samples (unfiltered)
+  rawSamples: Array<RawSample>
+
+  // Final data series: all points have accelRaw, accelFiltered, jerkSG
+  processedSamples: Array<ProcessedSample>
+
+  // Config
   accelCutoffHz: number // Hz
   jerkWindowMs: number // ms
 
@@ -19,6 +24,64 @@ interface UIState {
   rangeRequest: { type: 'full' | 'firstHit'; id: number } | null
   isDragging: boolean
   error: string | null
+}
+
+function processRawSamples(
+  rawSamples: Array<RawSample>,
+  sampleRateHz: number,
+  accelCutoffHz: number,
+  jerkWindowMs: number,
+): Array<ProcessedSample> {
+  if (rawSamples.length === 0) return []
+
+  const nyquist = sampleRateHz / 2
+  const safeCutoff = Math.min(accelCutoffHz, nyquist * 0.94)
+
+  const accelRawArray = rawSamples.map((s) => s.accelRaw)
+
+  // 1) Filter acceleration
+  const accelFilteredAll = butterworthFilter(accelRawArray, safeCutoff, sampleRateHz, 1)
+
+  // 2) Compute jerk from filtered acceleration
+  const jerkAll = sgFilter(accelFilteredAll, jerkWindowMs, 3, sampleRateHz, 1)
+
+  const n = rawSamples.length
+  let start = 0
+  let end = n - 1
+
+  const isInvalid = (i: number) =>
+    !Number.isFinite(accelFilteredAll[i]) || !Number.isFinite(jerkAll[i])
+
+  // Trim invalid points from the left
+  while (start <= end && isInvalid(start)) start++
+
+  // Trim invalid points from the right
+  while (end >= start && isInvalid(end)) end--
+
+  if (start > end) {
+    // No valid processed data
+    return []
+  }
+
+  // Optional: ensure interior is valid; if not, you can throw or skip.
+  // Here we just skip any weird interior points (should not happen in practice).
+  const t0 = rawSamples[start].timeMs
+  const out: Array<ProcessedSample> = []
+
+  for (let i = start; i <= end; i++) {
+    const af = accelFilteredAll[i]
+    const j = jerkAll[i]
+    if (!Number.isFinite(af) || !Number.isFinite(j)) continue
+
+    out.push({
+      timeMs: rawSamples[i].timeMs - t0, // rebase time to trimmed start
+      accelRaw: rawSamples[i].accelRaw,
+      accelFiltered: af,
+      jerkSG: j,
+    })
+  }
+
+  return out
 }
 
 class UIStore {
@@ -29,7 +92,9 @@ class UIStore {
     const [state, setState] = createStore<UIState>({
       filename: null,
       sampleRateHz: 1000,
-      samples: [],
+
+      rawSamples: [],
+      processedSamples: [],
 
       accelCutoffHz: 150,
       jerkWindowMs: 15,
@@ -53,90 +118,69 @@ class UIStore {
   }
 
   setAccelCutoffHz(val: number) {
-    // Max based on 1000 Hz Nyquist (500 Hz) with safety buffer
     const clamped = Math.max(10, Math.min(450, val))
     this.setState('accelCutoffHz', clamped)
-    this.applyFilters()
+    this.recomputeProcessedSamples()
   }
 
   setJerkWindowMs(val: number) {
     const clamped = Math.max(5, Math.min(50, val))
     this.setState('jerkWindowMs', clamped)
-    this.applyFilters()
+    this.recomputeProcessedSamples()
   }
 
   async loadFile(file: File) {
     this.setState('error', null)
     this.setState('filename', null)
-    this.setState('samples', [])
+    this.setState('rawSamples', [])
+    this.setState('processedSamples', [])
 
     try {
       const text = await file.text()
-      const rawData = parseRawCSV(text)
+      const rawData = parseRawCSV(text) // RawSample[]
       const rate = estimateSampleRateHz(rawData)
 
-      // Apply butter filter to raw data for origin detection
-      const rawAccel = rawData.map((r) => r.accel)
-      const filteredForOrigin = butterworthFilter(rawAccel, 160, rate, 1)
+      // Quick Butterworth for origin detection (fixed cutoff)
+      const accelForOrigin = rawData.map((s) => s.accelRaw)
+      const filteredForOrigin = butterworthFilter(accelForOrigin, 160, rate, 1)
 
-      // Detect origin using filtered data
-      const dataForOrigin = rawData.map((r, i) => ({
-        timeMs: r.timeMs,
-        accel: filteredForOrigin[i],
-      }))
-      const origin = detectOriginTime(dataForOrigin)
+      const originTime = detectOriginTime(rawData, filteredForOrigin)
 
-      // Create samples trimmed to origin
-      const samples: Array<SamplePoint> = rawData
-        .filter((r) => r.timeMs >= origin)
-        .map((r) => ({
-          timeMs: r.timeMs - origin,
-          accelRaw: r.accel,
-          accelFiltered: null,
-          jerkSG: null,
+      // Trim raw samples to origin and rebase time
+      const trimmedRaw: Array<RawSample> = rawData
+        .filter((s) => s.timeMs >= originTime)
+        .map((s) => ({
+          timeMs: s.timeMs - originTime,
+          accelRaw: s.accelRaw,
         }))
 
       this.setState('filename', file.name)
       this.setState('sampleRateHz', rate)
-      this.setState('samples', samples)
+      this.setState('rawSamples', trimmedRaw)
 
-      this.applyFilters()
+      this.recomputeProcessedSamples()
       this.setRangeRequest('firstHit')
     } catch (e: any) {
       console.error(e)
-      this.setState('error', e.message || 'Failed to parse file')
+      this.setState('error', e?.message || 'Failed to parse file')
     }
   }
 
-  private applyFilters() {
-    const samples = this.state.samples
-    const sampleRate = this.state.sampleRateHz
-    const cutoff = this.state.accelCutoffHz
-    const windowMs = this.state.jerkWindowMs
+  private recomputeProcessedSamples() {
+    const { rawSamples, sampleRateHz, accelCutoffHz, jerkWindowMs } = this.state
 
-    if (samples.length === 0) return
+    if (rawSamples.length === 0) {
+      this.setState('processedSamples', [])
+      return
+    }
 
     try {
-      // Prevent crash if cutoff is too close to Nyquist
-      const safeCutoff = Math.min(cutoff, (sampleRate / 2) * 0.94)
-
-      // Apply Butterworth filter (order=1 matches SciPy N=2)
-      const rawAccel = samples.map((s) => s.accelRaw)
-      const filteredData = butterworthFilter(rawAccel, safeCutoff, sampleRate, 1)
-
-      // Apply SG filter for jerk (polyOrder=3, derivative=1)
-      const jerkData = sgFilter(filteredData, windowMs, 3, sampleRate, 1)
-
-      // Update samples with filtered values
-      const updatedSamples = samples.map((s, i) => ({
-        ...s,
-        accelFiltered: filteredData[i],
-        jerkSG: jerkData[i] ?? 0,
-      }))
-
-      this.setState('samples', updatedSamples)
-    } catch (err) {
+      const processed = processRawSamples(rawSamples, sampleRateHz, accelCutoffHz, jerkWindowMs)
+      this.setState('processedSamples', processed)
+    } catch (err: any) {
       console.error('Filter calculation error', err)
+      this.setState('error', err?.message || 'Filter calculation error')
+      this.setState('processedSamples', [])
     }
   }
 }

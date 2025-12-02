@@ -40,7 +40,7 @@ const SliderControl = (props: {
   </div>
 )
 
-// Compact algorithm/parameter summary (no key–value pairs, no prose paragraph)
+// Compact algorithm/parameter summary
 const AlgorithmInfo = (props: { lines: Array<string> }) => (
   <div class="bg-white p-3 rounded border border-slate-200 text-[11px] text-slate-700 mb-3 shadow-sm">
     <div class="font-mono leading-snug space-y-0.5">
@@ -84,9 +84,9 @@ export const MainLayout = () => {
             <AlgorithmInfo
               lines={[
                 `source: ${state().filename}`,
-                `${state().samples.length.toLocaleString()} pts @ ${state().sampleRateHz} Hz`,
+                `${state().processedSamples.length.toLocaleString()} pts @ ${state().sampleRateHz} Hz`,
                 'channel: raw accelerometer',
-                'no filtering',
+                'no filtering (displayed as-is)',
               ]}
             />
           </section>

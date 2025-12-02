@@ -1,6 +1,11 @@
-export interface SamplePoint {
+export interface RawSample {
   timeMs: number
   accelRaw: number
-  accelFiltered: number | null
-  jerkSG: number | null
+}
+
+export interface ProcessedSample {
+  timeMs: number
+  accelRaw: number
+  accelFiltered: number
+  jerkSG: number
 }

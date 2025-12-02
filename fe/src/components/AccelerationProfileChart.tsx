@@ -100,10 +100,10 @@ export const AccelerationProfileChart = () => {
 
   // DATA UPDATE
   createEffect(() => {
-    const samples = uiStore.state.samples
+    const samples = uiStore.state.processedSamples
     if (!chartInst || samples.length === 0) return
 
-    // Calculate actual data ranges for both raw and filtered accel
+    // Calculate actual data ranges
     let accelRawMin = Number.POSITIVE_INFINITY
     let accelRawMax = Number.NEGATIVE_INFINITY
     let accelFilteredMin = Number.POSITIVE_INFINITY
@@ -113,8 +113,8 @@ export const AccelerationProfileChart = () => {
 
     for (const s of samples) {
       const raw = s.accelRaw
-      const filtered = s.accelFiltered ?? s.accelRaw
-      const jerk = s.jerkSG ?? 0
+      const filtered = s.accelFiltered
+      const jerk = s.jerkSG
 
       if (raw < accelRawMin) accelRawMin = raw
       if (raw > accelRawMax) accelRawMax = raw
@@ -124,11 +124,9 @@ export const AccelerationProfileChart = () => {
       if (jerk > jerkMax) jerkMax = jerk
     }
 
-    // Combine raw and filtered ranges to ensure both series fit
     const accelMin = Math.min(accelRawMin, accelFilteredMin)
     const accelMax = Math.max(accelRawMax, accelFilteredMax)
 
-    // Auto-expand ranges to fit all data while keeping defaults as minimum view
     const yAccelMin = Math.min(ACCEL_DEFAULT_MIN, accelMin - 1)
     const yAccelMax = Math.max(ACCEL_DEFAULT_MAX, accelMax + 1)
     const yJerkMin = Math.min(JERK_DEFAULT_MIN, jerkMin - 100)
@@ -202,11 +200,9 @@ export const AccelerationProfileChart = () => {
   // RANGE COMMAND (Zoom)
   createEffect(() => {
     const cmd = uiStore.state.rangeRequest
-    void cmd?.id // super important for refresh tracking
+    void cmd?.id // important for refresh tracking
 
-    const samples = uiStore.state.samples
-    // We explicitly check cmd here. Since setRangeRequest uses { id: Date.now() },
-    // this object reference changes every time the button is clicked, triggering this effect.
+    const samples = uiStore.state.processedSamples
     if (!chartInst || !cmd || samples.length === 0) return
 
     let start = 0
