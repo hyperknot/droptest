@@ -18,10 +18,17 @@ function parseNumber(value: string): number {
 }
 
 /**
+ * Detects if time values are in seconds or milliseconds.
+ * Heuristic: if max value > 100, assume milliseconds.
+ */
+function isTimeInMilliseconds(maxTime: number): boolean {
+  return maxTime > 100
+}
+
+/**
  * Pure CSV Parsing. Returns flat, raw data.
- * Expects columns: time0 (seconds), accel (g)
- * Auto-detects delimiter (comma vs semicolon)
- * Auto-handles decimal format (dot or comma)
+ * Expects columns: time0, accel (g)
+ * Auto-detects: delimiter, decimal format, time unit (sec vs ms)
  */
 export function parseRawCSV(text: string): Array<RawSample> {
   const lines = text
@@ -50,21 +57,32 @@ export function parseRawCSV(text: string): Array<RawSample> {
     throw new Error('Missing "accel" and "time0" columns')
   }
 
-  const rawOut: Array<RawSample> = []
+  // First pass: collect raw values
+  const rawValues: Array<{ accel: number; time: number }> = []
 
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const parts = lines[i].split(delimiter)
     if (parts.length <= Math.max(colAccel, colTime)) continue
 
     const accel = parseNumber(parts[colAccel])
-    const timeSec = parseNumber(parts[colTime])
+    const time = parseNumber(parts[colTime])
 
-    if (!Number.isFinite(accel) || !Number.isFinite(timeSec)) continue
+    if (!Number.isFinite(accel) || !Number.isFinite(time)) continue
 
-    rawOut.push({ timeMs: timeSec * 1000, accelRaw: accel })
+    rawValues.push({ accel, time })
   }
 
-  if (rawOut.length === 0) throw new Error('No valid data rows found')
+  if (rawValues.length === 0) throw new Error('No valid data rows found')
+
+  // Detect time unit based on max value
+  const maxTime = Math.max(...rawValues.map((v) => v.time))
+  const isMsFormat = isTimeInMilliseconds(maxTime)
+
+  // Convert to output format (always store as ms)
+  const rawOut: Array<RawSample> = rawValues.map(({ accel, time }) => ({
+    timeMs: isMsFormat ? time : time * 1000,
+    accelRaw: accel,
+  }))
 
   rawOut.sort((a, b) => a.timeMs - b.timeMs)
 
