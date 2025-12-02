@@ -20,6 +20,11 @@ interface UIState {
   accelCutoffHz: number // Hz
   jerkWindowMs: number // ms
 
+  // Derived metrics for current chart view
+  viewRangeMs: { min: number; max: number } | null
+  visiblePeakAccelG: number | null
+  visiblePeakJerkGs: number | null
+
   // UI state
   rangeRequest: { type: 'full' | 'firstHit'; id: number } | null
   isDragging: boolean
@@ -63,8 +68,6 @@ function processRawSamples(
     return []
   }
 
-  // Optional: ensure interior is valid; if not, you can throw or skip.
-  // Here we just skip any weird interior points (should not happen in practice).
   const t0 = rawSamples[start].timeMs
   const out: Array<ProcessedSample> = []
 
@@ -99,6 +102,10 @@ class UIStore {
       accelCutoffHz: 150,
       jerkWindowMs: 15,
 
+      viewRangeMs: null,
+      visiblePeakAccelG: null,
+      visiblePeakJerkGs: null,
+
       rangeRequest: null,
       isDragging: false,
       error: null,
@@ -115,6 +122,16 @@ class UIStore {
 
   setRangeRequest(type: 'full' | 'firstHit') {
     this.setState('rangeRequest', { type, id: Date.now() })
+  }
+
+  setVisiblePeaks(
+    range: { min: number; max: number } | null,
+    peakAccelG: number | null,
+    peakJerkGs: number | null,
+  ) {
+    this.setState('viewRangeMs', range)
+    this.setState('visiblePeakAccelG', peakAccelG)
+    this.setState('visiblePeakJerkGs', peakJerkGs)
   }
 
   setAccelCutoffHz(val: number) {
@@ -134,6 +151,7 @@ class UIStore {
     this.setState('filename', null)
     this.setState('rawSamples', [])
     this.setState('processedSamples', [])
+    this.setVisiblePeaks(null, null, null)
 
     try {
       const text = await file.text()
@@ -163,6 +181,7 @@ class UIStore {
     } catch (e: any) {
       console.error(e)
       this.setState('error', e?.message || 'Failed to parse file')
+      this.setVisiblePeaks(null, null, null)
     }
   }
 
@@ -171,16 +190,22 @@ class UIStore {
 
     if (rawSamples.length === 0) {
       this.setState('processedSamples', [])
+      this.setVisiblePeaks(null, null, null)
       return
     }
 
     try {
       const processed = processRawSamples(rawSamples, sampleRateHz, accelCutoffHz, jerkWindowMs)
       this.setState('processedSamples', processed)
+
+      if (processed.length === 0) {
+        this.setVisiblePeaks(null, null, null)
+      }
     } catch (err: any) {
       console.error('Filter calculation error', err)
       this.setState('error', err?.message || 'Filter calculation error')
       this.setState('processedSamples', [])
+      this.setVisiblePeaks(null, null, null)
     }
   }
 }
