@@ -35,14 +35,16 @@ export function estimateSampleRateHz(points: Array<{ timeMs: number }>): number 
  * Looks for first point with accel < -0.5g (freefall indicator).
  */
 export function detectOriginTime(data: Array<{ timeMs: number; accel: number }>): number {
+  if (data.length === 0) return 0
+
   const threshold = -0.5
   const preEventBufferMs = 200
 
   // With filtered data, first crossing is reliable - no sustained check needed
   const triggerIdx = data.findIndex((d) => d.accel < threshold)
-  if (triggerIdx === -1) return 0
+  if (triggerIdx === -1) return data[0].timeMs
 
-  return Math.max(0, data[triggerIdx].timeMs - preEventBufferMs)
+  return Math.max(data[0].timeMs, data[triggerIdx].timeMs - preEventBufferMs)
 }
 
 /**
@@ -51,7 +53,8 @@ export function detectOriginTime(data: Array<{ timeMs: number; accel: number }>)
  * @throws Error if filtered data is not available.
  */
 export function findFirstHitRange(samples: Array<SamplePoint>): TimeRange | null {
-  // Verify filtered data is available
+  if (samples.length === 0) return null
+
   for (let i = 0; i < samples.length; i++) {
     if (samples[i].accelFiltered == null) {
       throw new Error(`Sample at index ${i} is missing filtered acceleration data`)
@@ -74,8 +77,11 @@ export function findFirstHitRange(samples: Array<SamplePoint>): TimeRange | null
   if (peakIdx === -1) return null
 
   const t = samples[peakIdx].timeMs
+  const dataStart = samples[0].timeMs
+  const dataEnd = samples[samples.length - 1].timeMs
+
   return {
-    min: Math.max(0, t - 50),
-    max: t + 100,
+    min: Math.max(dataStart, t - 50),
+    max: Math.min(dataEnd, t + 100),
   }
 }

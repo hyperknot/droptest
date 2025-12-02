@@ -1,6 +1,6 @@
 /**
  * Pure CSV Parsing. Returns flat, raw data.
- * Does NOT perform offset calculation or filtering.
+ * Expects columns: time0 (seconds), accel (g)
  */
 export function parseRawCSV(text: string): Array<{ timeMs: number; accel: number }> {
   const lines = text
@@ -8,64 +8,33 @@ export function parseRawCSV(text: string): Array<{ timeMs: number; accel: number
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith('#'))
 
-  // Find header
+  // Find header with required columns
   const headerIdx = lines.findIndex(
-    (l) => l.toLowerCase().includes('accel') && l.toLowerCase().includes('datetime'),
+    (l) => l.toLowerCase().includes('accel') && l.toLowerCase().includes('time0'),
   )
-  if (headerIdx === -1) throw new Error('Missing "accel" and "datetime" columns')
+  if (headerIdx === -1) throw new Error('Missing "accel" and "time0" columns')
 
   const headers = lines[headerIdx].split(',').map((h) => h.trim().toLowerCase())
   const colAccel = headers.indexOf('accel')
-  const colDate = headers.indexOf('datetime')
+  const colTime = headers.indexOf('time0')
 
   const rawOut: Array<{ timeMs: number; accel: number }> = []
 
-  // Parse data
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const parts = lines[i].split(',')
-    if (parts.length <= Math.max(colAccel, colDate)) continue
+    if (parts.length <= Math.max(colAccel, colTime)) continue
 
-    const a = Number.parseFloat(parts[colAccel])
-    const dStr = parts[colDate]
+    const accel = Number.parseFloat(parts[colAccel])
+    const timeSec = Number.parseFloat(parts[colTime])
 
-    if (!Number.isFinite(a)) continue
+    if (!Number.isFinite(accel) || !Number.isFinite(timeSec)) continue
 
-    // Parse custom "YYYY-MM-DD HH:mm:ss.SSS" format
-    // Simple approach: replace separation, standard parse, add ms manually if needed
-    // Assuming the input format is strict based on previous patterns:
-    const [ymd, hms] = dStr.trim().split(' ')
-    if (!ymd || !hms) continue
-
-    const [y, m, d] = ymd.split('-').map(Number)
-    const [hr, min, secRest] = hms.split(':')
-    const [sec, msStr] = secRest.split('.')
-
-    // Construct UTC timestamp
-    const ms = Number.parseInt((msStr || '0').padEnd(3, '0').slice(0, 3), 10)
-    const ts = Date.UTC(
-      y,
-      m - 1,
-      d,
-      Number.parseInt(hr, 10),
-      Number.parseInt(min, 10),
-      Number.parseFloat(sec),
-      ms,
-    )
-
-    if (Number.isNaN(ts)) continue
-
-    rawOut.push({ timeMs: ts, accel: a })
+    rawOut.push({ timeMs: timeSec * 1000, accel })
   }
 
   if (rawOut.length === 0) throw new Error('No valid data rows found')
 
-  // Ensure sorted
   rawOut.sort((a, b) => a.timeMs - b.timeMs)
 
-  // Normalize time to start at 0 relative to file start (temp, will be re-zeroed by logic later)
-  const start = rawOut[0].timeMs
-  return rawOut.map((r) => ({
-    timeMs: r.timeMs - start,
-    accel: r.accel,
-  }))
+  return rawOut
 }
