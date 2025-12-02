@@ -12,12 +12,15 @@ const JERK_DEFAULT_MAX = 5000
 // Safe ranges for coloration (points outside are warning-colored)
 const ACCEL_SAFE_MAX = 42
 const JERK_SAFE_MAX = 2000
+const HIC_SAFE_MAX = 100
 
 // Colors
 const COLOR_ACCEL_FILTERED = '#2563eb' // Blue
 const COLOR_ACCEL_WARNING = '#f97316' // Orange - for accel > 42g
 const COLOR_JERK = '#a855f7' // Purple
 const COLOR_JERK_WARNING = '#ef4444' // Red - for |jerk| > 2000
+const COLOR_HIC = '#f7ab30ff' // Orange
+const COLOR_HIC_WARNING = '#eb3939ff' // Red
 const COLOR_RAW = '#16a34a' // Green
 
 export const AccelerationProfileChart = () => {
@@ -106,6 +109,20 @@ export const AccelerationProfileChart = () => {
           },
           splitLine: { show: false },
         },
+        // Right axis: HIC (blue)
+        {
+          type: 'value',
+          offset: 50,
+          name: 'HIC',
+          position: 'right',
+          axisLine: { show: true, lineStyle: { color: COLOR_HIC } },
+          nameTextStyle: { color: COLOR_HIC },
+          axisLabel: {
+            color: COLOR_HIC_WARNING,
+            formatter: (v: number) => v.toFixed(1),
+          },
+          splitLine: { show: false },
+        },
       ],
       dataZoom: [
         {
@@ -129,11 +146,14 @@ export const AccelerationProfileChart = () => {
     let accelFilteredMax = Number.NEGATIVE_INFINITY
     let jerkMin = Number.POSITIVE_INFINITY
     let jerkMax = Number.NEGATIVE_INFINITY
+    let hicMin = Number.POSITIVE_INFINITY
+    let hicMax = Number.NEGATIVE_INFINITY
 
     for (const s of samples) {
       const raw = s.accelRaw
       const filtered = s.accelFiltered
       const jerk = s.jerkSG
+      const hic = s.hic
 
       if (raw < accelRawMin) accelRawMin = raw
       if (raw > accelRawMax) accelRawMax = raw
@@ -141,6 +161,8 @@ export const AccelerationProfileChart = () => {
       if (filtered > accelFilteredMax) accelFilteredMax = filtered
       if (jerk < jerkMin) jerkMin = jerk
       if (jerk > jerkMax) jerkMax = jerk
+      if (hic < hicMin) hicMin = hic
+      if (hic > hicMax) hicMax = hic
     }
 
     const accelMin = Math.min(accelRawMin, accelFilteredMin)
@@ -150,11 +172,14 @@ export const AccelerationProfileChart = () => {
     const yAccelMax = Math.max(ACCEL_DEFAULT_MAX, accelMax + 1)
     const yJerkMin = Math.min(JERK_DEFAULT_MIN, jerkMin - 100)
     const yJerkMax = Math.max(JERK_DEFAULT_MAX, jerkMax + 100)
+    const yHicMin = Math.min(0, hicMin - 10)
+    const yHicMax = Math.max(10, hicMax + 10)
 
     chartInst.setOption({
       yAxis: [
         { min: yJerkMin, max: yJerkMax },
         { min: yAccelMin, max: yAccelMax },
+        { min: yHicMin, max: yHicMax},
       ],
       visualMap: [
         {
@@ -170,6 +195,13 @@ export const AccelerationProfileChart = () => {
           dimension: 1,
           pieces: [{ gte: -JERK_SAFE_MAX, lte: JERK_SAFE_MAX, color: COLOR_JERK }],
           outOfRange: { color: COLOR_JERK_WARNING },
+        },
+        {
+          show: false,
+          seriesIndex: 3, // HIC
+          dimension: 1,
+          pieces: [{ gte: -10, lte: HIC_SAFE_MAX, color: COLOR_HIC }],
+          outOfRange: { color: COLOR_HIC_WARNING },
         },
       ],
       series: [
@@ -210,6 +242,15 @@ export const AccelerationProfileChart = () => {
             },
             data: [{ yAxis: 0 }],
           },
+          z: 4,
+        },
+        {
+          name: 'HIC',
+          type: 'line',
+          yAxisIndex: 2,
+          showSymbol: false,
+          lineStyle: { width: 2.5 },
+          data: samples.map((s) => [s.timeMs, s.hic]),
           z: 3,
         },
       ],

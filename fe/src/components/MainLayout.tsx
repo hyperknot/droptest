@@ -53,6 +53,7 @@ const AlgorithmInfo = (props: { lines: Array<string> }) => (
 const PeakStats = () => {
   const peakAccel = () => uiStore.state.peakAccel
   const peakJerk = () => uiStore.state.peakJerk
+  const peakHIC = () => uiStore.state.peakHIC
 
   return (
     <div class="flex justify-center gap-8 px-4 py-2.5 bg-white border-b border-slate-200">
@@ -66,6 +67,12 @@ const PeakStats = () => {
         <span class="text-sm font-medium text-slate-600">Max Jerk (G/sec):</span>
         <span class="text-lg font-mono font-bold text-purple-600">
           {peakJerk() != null ? Math.round(peakJerk()!) : '—'}
+        </span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-medium text-slate-600">Max HIC:</span>
+        <span class="text-lg font-mono font-bold text-yellow-600">
+          {peakHIC() != null ? Math.round(peakHIC()!) : '—'}
         </span>
       </div>
     </div>
@@ -164,6 +171,28 @@ export const MainLayout = () => {
               unit="ms"
               accentColor="#a855f7"
               onChange={(v) => uiStore.setJerkWindowMs(v)}
+            />
+          </section>
+
+          {/* HIC Section */}
+          <section>
+            <SectionHeader colorClass="bg-purple-600" title="HIC" />
+            <AlgorithmInfo
+              lines={[
+                'HIC calculation',
+                `window=${state().hicWindowMs} ms`,
+              ]}
+            />
+
+            <SliderControl
+              label="Window Size"
+              value={state().hicWindowMs}
+              min={5}
+              max={51}
+              step={2}
+              unit="ms"
+              accentColor="#a855f7"
+              onChange={(v) => uiStore.setHICWindowMs(v)}
             />
           </section>
         </div>
