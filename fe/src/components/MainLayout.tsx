@@ -1,4 +1,4 @@
-import { For } from 'solid-js'
+import { For, type JSX } from 'solid-js'
 import { uiStore } from '../stores/uiStore'
 import { AccelerationProfileChart } from './AccelerationProfileChart'
 
@@ -41,7 +41,7 @@ const SliderControl = (props: {
 )
 
 // Compact algorithm/parameter summary
-const AlgorithmInfo = (props: { lines: Array<string> }) => (
+const AlgorithmInfo = (props: { lines: Array<string | JSX.Element> }) => (
   <div class="bg-white p-3 rounded border border-slate-200 text-[11px] text-slate-700 mb-3 shadow-sm">
     <div class="font-mono leading-snug space-y-0.5">
       <For each={props.lines}>{(line) => <div>{line}</div>}</For>
@@ -124,21 +124,30 @@ export const MainLayout = () => {
             <SectionHeader colorClass="bg-blue-600" title="Filtered Acceleration" />
             <AlgorithmInfo
               lines={[
-                'Butterworth low-pass, zero-phase (filtfilt)',
-                'order=1  →  2nd-order per pass (4th-order magnitude)',
-                `cutoff=${state().accelCutoffHz} Hz`,
+                <>
+                  CFC low-pass per{' '}
+                  <a
+                    href="https://law.resource.org/pub/us/cfr/ibr/005/sae.j211-1.1995.pdf"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-blue-600 underline"
+                  >
+                    SAE J211/1
+                  </a>
+                </>,
+                `CFC ${state().accelCfc} → Fc=${Math.round(state().accelCfc * 2.0775)} Hz`,
               ]}
             />
 
             <SliderControl
-              label="Cutoff Frequency"
-              value={state().accelCutoffHz}
-              min={10}
-              max={450}
-              step={10}
-              unit="Hz"
+              label="CFC Class"
+              value={state().accelCfc}
+              min={5}
+              max={225}
+              step={5}
+              unit=""
               accentColor="#2563eb"
-              onChange={(v) => uiStore.setAccelCutoffHz(v)}
+              onChange={(v) => uiStore.setAccelCfc(v)}
             />
           </section>
 

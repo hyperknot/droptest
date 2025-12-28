@@ -1,6 +1,6 @@
 import { createStore, type SetStoreFunction } from 'solid-js/store'
 import { parseRawCSV } from '../lib/csv-parser'
-import { butterworthFilter } from '../lib/filter/butterworth'
+import { cfcFilter } from '../lib/filter/cfc'
 import { detectOriginTime, estimateSampleRateHz } from '../lib/filter/range'
 import { sgFilter } from '../lib/filter/sg'
 import type { ProcessedSample, RawSample } from '../types'
@@ -17,7 +17,7 @@ interface UIState {
   processedSamples: Array<ProcessedSample>
 
   // Config
-  accelCutoffHz: number // Hz
+  accelCfc: number // CFC class value
   jerkWindowMs: number // ms
 
   // Visible range and computed peaks
@@ -34,18 +34,20 @@ interface UIState {
 function processRawSamples(
   rawSamples: Array<RawSample>,
   sampleRateHz: number,
-  accelCutoffHz: number,
+  accelCfc: number,
   jerkWindowMs: number,
 ): Array<ProcessedSample> {
   if (rawSamples.length === 0) return []
 
+  // Clamp CFC to safe range (design freq must be < 0.95 * Nyquist)
   const nyquist = sampleRateHz / 2
-  const safeCutoff = Math.min(accelCutoffHz, nyquist * 0.94)
+  const maxCfc = (nyquist * 0.94) / 2.0775
+  const safeCfc = Math.min(accelCfc, maxCfc)
 
   const accelRawArray = rawSamples.map((s) => s.accelRaw)
 
-  // 1) Filter acceleration
-  const accelFilteredAll = butterworthFilter(accelRawArray, safeCutoff, sampleRateHz, 1)
+  // 1) Filter acceleration using CFC filter
+  const accelFilteredAll = cfcFilter(accelRawArray, sampleRateHz, safeCfc)
 
   // 2) Compute jerk from filtered acceleration
   const jerkAll = sgFilter(accelFilteredAll, jerkWindowMs, 3, sampleRateHz, 1)
@@ -101,7 +103,7 @@ class UIStore {
       rawSamples: [],
       processedSamples: [],
 
-      accelCutoffHz: 150,
+      accelCfc: 75,
       jerkWindowMs: 15,
 
       visibleTimeRange: null,
@@ -131,9 +133,9 @@ class UIStore {
     this.recomputePeaks()
   }
 
-  setAccelCutoffHz(val: number) {
-    const clamped = Math.max(10, Math.min(450, val))
-    this.setState('accelCutoffHz', clamped)
+  setAccelCfc(val: number) {
+    const clamped = Math.max(5, Math.min(225, val))
+    this.setState('accelCfc', clamped)
     this.recomputeProcessedSamples()
   }
 
@@ -157,9 +159,9 @@ class UIStore {
       const rawData = parseRawCSV(text) // RawSample[]
       const rate = estimateSampleRateHz(rawData)
 
-      // Quick Butterworth for origin detection (fixed cutoff)
+      // CFC filter for origin detection
       const accelForOrigin = rawData.map((s) => s.accelRaw)
-      const filteredForOrigin = butterworthFilter(accelForOrigin, 160, rate, 1)
+      const filteredForOrigin = cfcFilter(accelForOrigin, rate, 75)
 
       const originTime = detectOriginTime(rawData, filteredForOrigin)
 
@@ -184,7 +186,7 @@ class UIStore {
   }
 
   private recomputeProcessedSamples() {
-    const { rawSamples, sampleRateHz, accelCutoffHz, jerkWindowMs } = this.state
+    const { rawSamples, sampleRateHz, accelCfc, jerkWindowMs } = this.state
 
     if (rawSamples.length === 0) {
       this.setState('processedSamples', [])
@@ -195,7 +197,7 @@ class UIStore {
     }
 
     try {
-      const processed = processRawSamples(rawSamples, sampleRateHz, accelCutoffHz, jerkWindowMs)
+      const processed = processRawSamples(rawSamples, sampleRateHz, accelCfc, jerkWindowMs)
       this.setState('processedSamples', processed)
 
       // Initialize visible range to full extent, then recompute peaks
