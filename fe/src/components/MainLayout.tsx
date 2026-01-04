@@ -53,6 +53,8 @@ const AlgorithmInfo = (props: { lines: Array<string | JSX.Element> }) => (
 const PeakStats = () => {
   const peakAccel = () => uiStore.state.peakAccel
   const peakJerk = () => uiStore.state.peakJerk
+  const dri = () => uiStore.state.dri
+  const driDeltaMaxMm = () => uiStore.state.driDeltaMaxMm
 
   return (
     <div class="flex justify-center gap-8 px-4 py-2.5 bg-white border-b border-slate-200">
@@ -66,6 +68,15 @@ const PeakStats = () => {
         <span class="text-sm font-medium text-slate-600">Max Jerk (G/sec):</span>
         <span class="text-lg font-mono font-bold text-purple-600">
           {peakJerk() != null ? Math.round(peakJerk()!) : '—'}
+        </span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-medium text-slate-600">DRI (visible window):</span>
+        <span class="text-lg font-mono font-bold text-slate-800">
+          {dri() != null ? dri()!.toFixed(2) : '—'}
+        </span>
+        <span class="text-xs font-mono text-slate-500">
+          {driDeltaMaxMm() != null ? `Δmax=${driDeltaMaxMm()!.toFixed(2)} mm` : ''}
         </span>
       </div>
     </div>
@@ -113,6 +124,8 @@ export const MainLayout = () => {
                 `${state().processedSamples.length.toLocaleString()} pts @ ${state().sampleRateHz} Hz`,
                 'channel: raw accelerometer',
                 'no filtering (displayed as-is)',
+                'REMINDER: expected accel convention:',
+                '  ~0 G at rest, ~-1 G in free fall',
               ]}
             />
           </section>
@@ -173,6 +186,21 @@ export const MainLayout = () => {
               unit="ms"
               accentColor="#a855f7"
               onChange={(v) => uiStore.setJerkWindowMs(v)}
+            />
+          </section>
+
+          <hr class="border-slate-200" />
+
+          {/* DRI Section */}
+          <section>
+            <SectionHeader colorClass="bg-slate-800" title="DRI (Dynamic Response Index)" />
+            <AlgorithmInfo
+              lines={[
+                'computed over current zoom window',
+                'model: x" + 2ζωx\' + ω²x = -a(t)',
+                'DRI = ω²·max(|x|)/g',
+                'ω=52.9 rad/s, ζ=0.224',
+              ]}
             />
           </section>
         </div>

@@ -3,6 +3,7 @@ import { parseRawCSV } from '../lib/csv-parser'
 import { cfcFilter } from '../lib/filter/cfc'
 import { detectOriginTime, estimateSampleRateHz } from '../lib/filter/range'
 import { sgFilter } from '../lib/filter/sg'
+import { computeDRIForWindow } from '../lib/metrics/dri'
 import type { ProcessedSample, RawSample } from '../types'
 
 interface UIState {
@@ -24,6 +25,10 @@ interface UIState {
   visibleTimeRange: { min: number; max: number } | null
   peakAccel: number | null
   peakJerk: number | null
+
+  // DRI over the visible window
+  dri: number | null
+  driDeltaMaxMm: number | null
 
   // UI state
   rangeRequest: { type: 'full' | 'firstHit'; id: number } | null
@@ -104,11 +109,14 @@ class UIStore {
       processedSamples: [],
 
       accelCfc: 75,
-      jerkWindowMs: 15,
+      jerkWindowMs: 17,
 
       visibleTimeRange: null,
       peakAccel: null,
       peakJerk: null,
+
+      dri: null,
+      driDeltaMaxMm: null,
 
       rangeRequest: null,
       isDragging: false,
@@ -153,6 +161,8 @@ class UIStore {
     this.setState('visibleTimeRange', null)
     this.setState('peakAccel', null)
     this.setState('peakJerk', null)
+    this.setState('dri', null)
+    this.setState('driDeltaMaxMm', null)
 
     try {
       const text = await file.text()
@@ -193,6 +203,8 @@ class UIStore {
       this.setState('visibleTimeRange', null)
       this.setState('peakAccel', null)
       this.setState('peakJerk', null)
+      this.setState('dri', null)
+      this.setState('driDeltaMaxMm', null)
       return
     }
 
@@ -215,6 +227,8 @@ class UIStore {
       this.setState('visibleTimeRange', null)
       this.setState('peakAccel', null)
       this.setState('peakJerk', null)
+      this.setState('dri', null)
+      this.setState('driDeltaMaxMm', null)
     }
   }
 
@@ -224,6 +238,8 @@ class UIStore {
     if (processedSamples.length === 0 || !visibleTimeRange) {
       this.setState('peakAccel', null)
       this.setState('peakJerk', null)
+      this.setState('dri', null)
+      this.setState('driDeltaMaxMm', null)
       return
     }
 
@@ -242,12 +258,22 @@ class UIStore {
       }
     }
 
+    // DRI over the visible window (using filtered acceleration)
+    const driRes = computeDRIForWindow(processedSamples, {
+      minMs: visibleTimeRange.min,
+      maxMs: visibleTimeRange.max,
+    })
+
     if (peakAccel === Number.NEGATIVE_INFINITY) {
       this.setState('peakAccel', null)
       this.setState('peakJerk', null)
+      this.setState('dri', null)
+      this.setState('driDeltaMaxMm', null)
     } else {
       this.setState('peakAccel', peakAccel)
       this.setState('peakJerk', peakJerk)
+      this.setState('dri', driRes?.dri ?? null)
+      this.setState('driDeltaMaxMm', driRes?.deltaMaxMm ?? null)
     }
   }
 }
