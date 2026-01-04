@@ -1,7 +1,7 @@
 import { createStore, type SetStoreFunction } from 'solid-js/store'
 import { parseRawCSV } from '../lib/csv-parser'
 import { cfcFilter } from '../lib/filter/cfc'
-import { detectOriginTime, estimateSampleRateHz } from '../lib/filter/range'
+import { detectOriginTime, estimateSampleRateHz, findFirstHitRange } from '../lib/filter/range'
 import { sgFilter } from '../lib/filter/sg'
 import { computeDRIForWindow } from '../lib/metrics/dri'
 import type { ProcessedSample, RawSample } from '../types'
@@ -134,6 +134,26 @@ class UIStore {
 
   setRangeRequest(type: 'full' | 'firstHit') {
     this.setState('rangeRequest', { type, id: Date.now() })
+
+    // IMPORTANT:
+    // Chart zoom commands (setOption) do not always emit the 'datazoom' event.
+    // The visible window used for peaks/DRI must be updated in the store as well,
+    // otherwise DRI stays "—" until the user manually nudges the zoom slider.
+    const samples = this.state.processedSamples
+    if (samples.length === 0) return
+
+    if (type === 'full') {
+      this.setVisibleTimeRange(samples[0].timeMs, samples[samples.length - 1].timeMs)
+      return
+    }
+
+    const range = findFirstHitRange(samples)
+    if (range) {
+      this.setVisibleTimeRange(range.min, range.max)
+    } else {
+      // Fallback: if no peak found, use full range
+      this.setVisibleTimeRange(samples[0].timeMs, samples[samples.length - 1].timeMs)
+    }
   }
 
   setVisibleTimeRange(min: number, max: number) {
@@ -188,6 +208,8 @@ class UIStore {
       this.setState('rawSamples', trimmedRaw)
 
       this.recomputeProcessedSamples()
+
+      // This will now also set visibleTimeRange in the store.
       this.setRangeRequest('firstHit')
     } catch (e: any) {
       console.error(e)

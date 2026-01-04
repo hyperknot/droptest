@@ -196,13 +196,10 @@ export const MainLayout = () => {
             <SectionHeader colorClass="bg-slate-800" title="DRI (Dynamic Response Index)" />
             <AlgorithmInfo
               lines={[
-                'computed over current zoom window',
                 'model: x" + 2ζωx\' + ω²x = -a(t)',
                 'DRI = ω²·max(|x|)/g',
-                'input a(t): SAME as "accel filtered" (same CFC slider)',
-                'rule: window start must be free fall (accelFiltered < -0.9 G) or DRI is not computed',
-                'baseline: avg accelFiltered over 200 ms BEFORE window start; subtract so free fall -> ~0 G',
                 'ω=52.9 rad/s, ζ=0.224',
+                'computed over current zoom window',
               ]}
             />
           </section>
