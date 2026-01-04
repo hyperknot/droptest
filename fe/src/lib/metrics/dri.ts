@@ -1,8 +1,7 @@
 /**
  * Dynamic Response Index (DRI)
  * ----------------------------
- * Implements the classic 1-DOF biodynamic model used for spinal compression risk
- * estimation in ejection seat / +Gz shock literature (von Gierke / Griffin).
+ * 1-DOF biodynamic model used for spinal compression risk estimation.
  *
  * Model:
  *   x'' + 2*zeta*omega_n*x' + omega_n^2*x = -a(t)
@@ -10,18 +9,17 @@
  * DRI:
  *   DRI = (omega_n^2 * max(|x|)) / g0
  *
- * IMPORTANT ABOUT INPUT ACCEL UNITS / CONVENTION:
- * ----------------------------------------------
- * This app assumes your CSV "accel" channel is in Gs and uses this convention:
+ * This app's accel convention:
+ * - ~0 G at rest
+ * - ~-1 G in free fall
  *
- *   - approximately 0 G at rest (stationary)
- *   - approximately -1 G during free fall
+ * "One-bounce" windowed approach implemented here (per your requirements):
+ * 1) Require the window start sample to be in free fall (< -0.9 G), else refuse.
+ * 2) If OK, compute baseline average over the 200 ms interval immediately BEFORE window start,
+ *    and use that as the subtraction value (typically ~-1 G).
+ * 3) Integrate only inside the window (stop exactly at window end).
  *
- * That implies your exported signal is effectively "1 g removed" compared to a
- * typical raw accelerometer (+1 G at rest, 0 G in free fall).
- *
- * If your logger exports +1 G at rest, you should subtract 1.0 before feeding
- * the data into this DRI calculation (or adjust in the parser).
+ * This uses the SAME series as displayed ("accelFiltered"), i.e. same CFC slider.
  */
 
 import type { ProcessedSample } from '../../types'
@@ -36,16 +34,12 @@ export interface DRIResult {
   deltaMaxMm: number
   omegaN: number
   zeta: number
+
+  // Debugging diagnostics (not shown in UI):
+  baselineG: number
+  baselineSamples: number
 }
 
-/**
- * Compute DRI over a window [minMs, maxMs] using accelFiltered as input.
- *
- * Notes:
- * - Integration starts at window start with x(0)=0, x'(0)=0 (windowed DRI).
- * - If you want the oscillator state to include earlier history, extend the
- *   window earlier (e.g. include pre-impact time).
- */
 export function computeDRIForWindow(
   samples: Array<ProcessedSample>,
   window: { minMs: number; maxMs: number },
@@ -53,34 +47,57 @@ export function computeDRIForWindow(
   if (samples.length < 2) return null
   if (!(window.maxMs > window.minMs)) return null
 
-  // Find start/end indices inside the requested window.
+  // Find indices spanning the requested window.
   let startIdx = -1
   let endIdx = -1
-
   for (let i = 0; i < samples.length; i++) {
     const t = samples[i].timeMs
     if (startIdx === -1 && t >= window.minMs) startIdx = i
     if (t <= window.maxMs) endIdx = i
   }
-
   if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) return null
+
+  // (1) Require: start-of-window must be in free fall.
+  const FREE_FALL_REQUIRED_G = -0.9
+  const aStartG = samples[startIdx].accelFiltered
+  if (!(aStartG < FREE_FALL_REQUIRED_G)) {
+    return null
+  }
+
+  // (2) Baseline estimate from 200 ms immediately BEFORE window start.
+  const BASELINE_LOOKBACK_MS = 200
+  const baselineMinT = Math.max(samples[0].timeMs, window.minMs - BASELINE_LOOKBACK_MS)
+  const baselineMaxT = window.minMs
+
+  let baselineSum = 0
+  let baselineCount = 0
+  for (let i = 0; i < samples.length; i++) {
+    const t = samples[i].timeMs
+    if (t >= baselineMinT && t <= baselineMaxT) {
+      const aG = samples[i].accelFiltered
+      if (Number.isFinite(aG)) {
+        baselineSum += aG
+        baselineCount++
+      }
+    }
+  }
+  if (baselineCount === 0) return null
+  const baselineG = baselineSum / baselineCount
 
   const omega = DRI_OMEGA_N
   const zeta = DRI_ZETA
 
-  // State: x = displacement [m], v = velocity [m/s]
+  // State: x [m], v [m/s]
   let x = 0
   let v = 0
   let deltaMax = 0
 
-  // ODE derivative
   const deriv = (x0: number, v0: number, a: number) => {
     const dx = v0
     const dv = -2 * zeta * omega * v0 - omega * omega * x0 - a
     return { dx, dv }
   }
 
-  // RK4 step with (optionally) varying input acceleration across the step.
   const rk4Step = (dt: number, a0: number, aMid: number, a1: number) => {
     const k1 = deriv(x, v, a0)
 
@@ -100,17 +117,17 @@ export function computeDRIForWindow(
     v += (dt / 6) * (k1.dv + 2 * k2.dv + 2 * k3.dv + k4.dv)
   }
 
-  // Integrate across the window.
+  // (3) Integrate only inside the window and stop at window end.
   for (let i = startIdx; i < endIdx; i++) {
     const t0 = samples[i].timeMs
     const t1 = samples[i + 1].timeMs
     const dt = (t1 - t0) / 1000
-
     if (!(dt > 0)) continue
 
-    // Convert from G to m/s^2.
-    const a0 = samples[i].accelFiltered * G0
-    const a1 = samples[i + 1].accelFiltered * G0
+    // Use the SAME filtered series, corrected by the baseline:
+    // free fall (~-1 G) becomes ~0 G loading.
+    const a0 = (samples[i].accelFiltered - baselineG) * G0
+    const a1 = (samples[i + 1].accelFiltered - baselineG) * G0
     const aMid = 0.5 * (a0 + a1)
 
     rk4Step(dt, a0, aMid, a1)
@@ -127,5 +144,7 @@ export function computeDRIForWindow(
     deltaMaxMm: deltaMax * 1000,
     omegaN: omega,
     zeta,
+    baselineG,
+    baselineSamples: baselineCount,
   }
 }
