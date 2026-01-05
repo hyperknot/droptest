@@ -53,8 +53,6 @@ const AlgorithmInfo = (props: { lines: Array<string | JSX.Element> }) => (
 const PeakStats = () => {
   const peakAccel = () => uiStore.state.peakAccel
   const peakJerk = () => uiStore.state.peakJerk
-  const dri = () => uiStore.state.dri
-  const driDeltaMaxMm = () => uiStore.state.driDeltaMaxMm
 
   return (
     <div class="flex justify-center gap-8 px-4 py-2.5 bg-white border-b border-slate-200">
@@ -70,21 +68,14 @@ const PeakStats = () => {
           {peakJerk() != null ? Math.round(peakJerk()!) : '—'}
         </span>
       </div>
-      <div class="flex items-center gap-2">
-        <span class="text-sm font-medium text-slate-600">DRI (visible window):</span>
-        <span class="text-lg font-mono font-bold text-slate-800">
-          {dri() != null ? dri()!.toFixed(2) : '—'}
-        </span>
-        <span class="text-xs font-mono text-slate-500">
-          {driDeltaMaxMm() != null ? `Δmax=${driDeltaMaxMm()!.toFixed(2)} mm` : ''}
-        </span>
-      </div>
     </div>
   )
 }
 
 export const MainLayout = () => {
   const state = () => uiStore.state
+  const dri = () => uiStore.state.dri
+  const driDeltaMaxMm = () => uiStore.state.driDeltaMaxMm
 
   return (
     <div class="h-screen flex overflow-hidden bg-white">
@@ -194,14 +185,26 @@ export const MainLayout = () => {
           {/* DRI Section */}
           <section>
             <SectionHeader colorClass="bg-slate-800" title="DRI (Dynamic Response Index)" />
-            <AlgorithmInfo
-              lines={[
-                'model: x" + 2ζωx\' + ω²x = -a(t)',
-                'DRI = ω²·max(|x|)/g',
-                'ω=52.9 rad/s, ζ=0.224',
-                'computed over current zoom window',
-              ]}
-            />
+            <div class="bg-white p-3 rounded border border-slate-200 text-[11px] text-slate-700 shadow-sm">
+              <div class="font-mono leading-snug space-y-0.5">
+                <div>model: x" + 2ζωx' + ω²x = -a(t)</div>
+                <div>DRI = ω²·max(|x|)/g</div>
+                <div>ω=52.9 rad/s, ζ=0.224</div>
+                <div>computed over current zoom window</div>
+              </div>
+              <div class="border-t border-slate-200 mt-2 pt-2 flex justify-between items-baseline">
+                <span class="text-xs font-bold text-slate-700">DRI</span>
+                <span class="text-xl font-mono font-bold text-slate-900">
+                  {dri() != null ? dri()!.toFixed(2) : '—'}
+                </span>
+              </div>
+              {driDeltaMaxMm() != null && (
+                <div class="flex justify-between items-center mt-1 text-xs text-slate-500">
+                  <span>Δmax</span>
+                  <span class="font-mono">{driDeltaMaxMm()!.toFixed(2)} mm</span>
+                </div>
+              )}
+            </div>
           </section>
         </div>
       </aside>
