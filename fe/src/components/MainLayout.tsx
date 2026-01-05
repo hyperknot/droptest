@@ -113,10 +113,8 @@ export const MainLayout = () => {
               lines={[
                 `source: ${state().filename}`,
                 `${state().processedSamples.length.toLocaleString()} pts @ ${state().sampleRateHz} Hz`,
-                'channel: raw accelerometer',
-                'no filtering (displayed as-is)',
-                'REMINDER: expected accel convention:',
-                '  ~0 G at rest, ~-1 G in free fall',
+                'expected accel convention:',
+                '  ~ 0 G at rest, ~ -1 G in free fall',
               ]}
             />
           </section>
