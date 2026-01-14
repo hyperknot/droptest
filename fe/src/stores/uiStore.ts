@@ -22,6 +22,7 @@ interface UIState {
   // Config
   accelCfc: number // CFC class value
   jerkWindowMs: number // ms
+  jerkPolyOrder: 1 | 3 // Savitzky-Golay polynomial order
 
   // Visible range and computed peaks
   visibleTimeRange: { min: number; max: number } | null
@@ -64,6 +65,7 @@ function processRawSamples(
   sampleRateHz: number,
   accelCfc: number,
   jerkWindowMs: number,
+  jerkPolyOrder: 1 | 3,
 ): Array<ProcessedSample> {
   if (rawSamples.length === 0) return []
 
@@ -78,7 +80,7 @@ function processRawSamples(
   const accelFilteredAll = cfcFilter(accelRawArray, sampleRateHz, safeCfc)
 
   // 2) Compute jerk from filtered acceleration
-  const jerkAll = sgFilter(accelFilteredAll, jerkWindowMs, 3, sampleRateHz, 1)
+  const jerkAll = sgFilter(accelFilteredAll, jerkWindowMs, jerkPolyOrder, sampleRateHz, 1)
 
   const n = rawSamples.length
   let start = 0
@@ -133,6 +135,7 @@ class UIStore {
 
       accelCfc: 75,
       jerkWindowMs: 17,
+      jerkPolyOrder: 3,
 
       visibleTimeRange: null,
       peakAccel: null,
@@ -220,6 +223,11 @@ class UIStore {
     this.recomputeProcessedSamples()
   }
 
+  setJerkPolyOrder(val: 1 | 3) {
+    this.setState('jerkPolyOrder', val)
+    this.recomputeProcessedSamples()
+  }
+
   async loadFile(file: File) {
     this.setState('error', null)
     this.setState('filename', null)
@@ -288,7 +296,7 @@ class UIStore {
   }
 
   private recomputeProcessedSamples() {
-    const { rawSamples, sampleRateHz, accelCfc, jerkWindowMs } = this.state
+    const { rawSamples, sampleRateHz, accelCfc, jerkWindowMs, jerkPolyOrder } = this.state
 
     if (rawSamples.length === 0) {
       this.setState('processedSamples', [])
@@ -316,7 +324,13 @@ class UIStore {
     }
 
     try {
-      const processed = processRawSamples(rawSamples, sampleRateHz, accelCfc, jerkWindowMs)
+      const processed = processRawSamples(
+        rawSamples,
+        sampleRateHz,
+        accelCfc,
+        jerkWindowMs,
+        jerkPolyOrder,
+      )
       this.setState('processedSamples', processed)
 
       // Initialize visible range to full extent, then recompute peaks

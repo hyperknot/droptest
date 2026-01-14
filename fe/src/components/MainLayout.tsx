@@ -171,7 +171,7 @@ export const MainLayout = () => {
             <AlgorithmInfo
               lines={[
                 'Savitzky–Golay derivative',
-                'polyOrder=3, deriv=1  →  units: G/s',
+                `polyOrder=${state().jerkPolyOrder}, deriv=1  →  units: G/s`,
                 `window=${state().jerkWindowMs} ms`,
               ]}
             />
@@ -186,76 +186,164 @@ export const MainLayout = () => {
               accentColor="#a855f7"
               onChange={(v) => uiStore.setJerkWindowMs(v)}
             />
+
+            <div class="mt-2">
+              <label class="text-xs font-bold text-slate-700 block mb-1">Polynomial Order</label>
+              <div class="flex gap-1">
+                <button
+                  class={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition ${
+                    state().jerkPolyOrder === 1
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                  }`}
+                  onClick={() => uiStore.setJerkPolyOrder(1)}
+                >
+                  Linear (1)
+                </button>
+                <button
+                  class={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition ${
+                    state().jerkPolyOrder === 3
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                  }`}
+                  onClick={() => uiStore.setJerkPolyOrder(3)}
+                >
+                  Cubic (3)
+                </button>
+              </div>
+            </div>
           </section>
 
           <hr class="border-slate-200" />
 
           {/* Energy Section */}
           <section>
-            <SectionHeader colorClass="bg-amber-600" title="Impact Energy" />
-            <div class="bg-white p-3 rounded border border-slate-200 text-[11px] text-slate-700 shadow-sm">
-              <div class="flex items-center justify-between gap-3">
-                <div class="font-mono leading-snug space-y-0.5">
-                  <div>v(t) computed by integrating a(t)</div>
-                  <div>Energy per mass: 0.5 * v² (J/kg)</div>
-                  <div>COR: e = v_rebound / v_impact, Energy return = e²</div>
-                  <div>Bounce height: h = v_rebound² / (2g)</div>
-                </div>
-
-                <label class="flex items-center gap-2 text-xs select-none">
-                  <input
-                    type="checkbox"
-                    checked={state().showVelocityOnChart}
-                    onInput={(e) => uiStore.setShowVelocityOnChart(e.currentTarget.checked)}
-                  />
+            <SectionHeader colorClass="bg-emerald-600" title="Impact Energy" />
+            <div class="bg-emerald-50 p-3 rounded border border-emerald-200 shadow-sm">
+              {/* Velocity toggle */}
+              <div class="flex gap-1 mb-3">
+                <button
+                  class={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition ${
+                    !state().showVelocityOnChart
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-white text-emerald-700 border border-emerald-300 hover:bg-emerald-100'
+                  }`}
+                  onClick={() => uiStore.setShowVelocityOnChart(false)}
+                >
+                  Hide v(t)
+                </button>
+                <button
+                  class={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition ${
+                    state().showVelocityOnChart
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-white text-emerald-700 border border-emerald-300 hover:bg-emerald-100'
+                  }`}
+                  onClick={() => uiStore.setShowVelocityOnChart(true)}
+                >
                   Show v(t)
-                </label>
+                </button>
               </div>
 
-              <div class="border-t border-slate-200 mt-2 pt-2 space-y-1.5">
-                <div class="flex justify-between items-center">
-                  <span class="text-xs font-bold text-slate-700">v before</span>
-                  <span class="font-mono">{fmt(state().impactVelocityBeforeMps, 2, ' m/s')}</span>
+              {/* Main absorbed energy highlight */}
+              <div class="bg-white rounded-lg p-3 border border-emerald-200 mb-3">
+                <div class="text-center">
+                  <div class="text-[10px] uppercase tracking-wide text-emerald-600 font-semibold mb-1">
+                    Energy Absorbed by Foam
+                  </div>
+                  <div class="text-3xl font-mono font-bold text-emerald-700">
+                    {state().absorbedEnergyJPerKg?.toFixed(1) ?? '—'}
+                    <span class="text-lg ml-1 font-normal">J/kg</span>
+                  </div>
+                  <div class="text-[10px] text-slate-500 mt-1">
+                    = Impact − Rebound kinetic energy
+                  </div>
                 </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-xs font-bold text-slate-700">v after</span>
-                  <span class="font-mono">{fmt(state().impactVelocityAfterMps, 2, ' m/s')}</span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-xs font-bold text-slate-700">Δv</span>
-                  <span class="font-mono">{fmt(state().impactDeltaVelocityMps, 2, ' m/s')}</span>
-                </div>
+              </div>
 
-                <div class="border-t border-slate-200 mt-2 pt-2 space-y-1.5">
-                  <div class="flex justify-between items-center">
-                    <span class="text-xs font-bold text-slate-700">COR (e)</span>
-                    <span class="font-mono">{fmtNum(state().cor, 3)}</span>
+              {/* Energy breakdown */}
+              <div class="grid grid-cols-2 gap-2 mb-3">
+                <div class="bg-white rounded p-2 border border-emerald-200 text-center">
+                  <div class="text-[10px] text-slate-500 uppercase tracking-wide">Impact</div>
+                  <div class="text-sm font-mono font-semibold text-emerald-700">
+                    {state().impactEnergyJPerKg?.toFixed(1) ?? '—'}
+                    <span class="text-xs ml-0.5 font-normal">J/kg</span>
                   </div>
-                  <div class="flex justify-between items-center">
-                    <span class="text-xs font-bold text-slate-700">Energy return</span>
-                    <span class="font-mono">{fmt(state().energyReturnPercent, 1, '%')}</span>
+                  <div class="text-[9px] text-slate-400">½·v²</div>
+                </div>
+                <div class="bg-white rounded p-2 border border-emerald-200 text-center">
+                  <div class="text-[10px] text-slate-500 uppercase tracking-wide">Rebound</div>
+                  <div class="text-sm font-mono font-semibold text-emerald-700">
+                    {state().reboundEnergyJPerKg?.toFixed(1) ?? '—'}
+                    <span class="text-xs ml-0.5 font-normal">J/kg</span>
                   </div>
-                  <div class="flex justify-between items-center">
-                    <span class="text-xs font-bold text-slate-700">Bounce height</span>
-                    <span class="font-mono">{fmt(state().bounceHeightCm, 1, ' cm')}</span>
+                  <div class="text-[9px] text-slate-400">½·v²</div>
+                </div>
+              </div>
+
+              {/* Velocities */}
+              <div class="bg-white rounded p-2 border border-emerald-200 mb-3">
+                <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5">
+                  Velocity
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <div class="text-[9px] text-slate-500">Before</div>
+                    <div class="text-xs font-mono font-semibold">
+                      {fmt(state().impactVelocityBeforeMps, 2, '')}
+                    </div>
+                  </div>
+                  <div>
+                    <div class="text-[9px] text-slate-500">After</div>
+                    <div class="text-xs font-mono font-semibold">
+                      {fmt(state().impactVelocityAfterMps, 2, '')}
+                    </div>
+                  </div>
+                  <div>
+                    <div class="text-[9px] text-slate-500">Δv</div>
+                    <div class="text-xs font-mono font-semibold">
+                      {fmt(state().impactDeltaVelocityMps, 2, '')}
+                    </div>
                   </div>
                 </div>
+                <div class="text-[9px] text-slate-400 text-center mt-1">
+                  m/s (integrated from acceleration)
+                </div>
+              </div>
 
-                <div class="border-t border-slate-200 mt-2 pt-2">
-                  <div class="flex justify-between items-baseline">
-                    <span class="text-xs font-bold text-slate-700">Absorbed</span>
-                    <span class="text-xl font-mono font-bold text-amber-700">
-                      {state().absorbedEnergyJPerKg?.toFixed(1) ?? '—'}
-                      <span class="text-sm ml-1">J/kg</span>
+              {/* Derived metrics */}
+              <div class="space-y-2">
+                <div class="bg-white rounded p-2 border border-emerald-200">
+                  <div class="flex justify-between items-center">
+                    <div>
+                      <span class="text-xs font-semibold text-slate-700">COR</span>
+                      <span class="text-[10px] text-slate-400 ml-1">v_out / v_in</span>
+                    </div>
+                    <span class="text-sm font-mono font-bold text-emerald-700">
+                      {fmtNum(state().cor, 3)}
                     </span>
                   </div>
-                  <div class="flex justify-between items-center mt-1 text-xs text-slate-500">
-                    <span>Impact / rebound</span>
-                    <span class="font-mono">
-                      {state().impactEnergyJPerKg?.toFixed(1) ?? '—'}
-                      {' / '}
-                      {state().reboundEnergyJPerKg?.toFixed(1) ?? '—'}
-                      {' J/kg'}
+                </div>
+
+                <div class="bg-white rounded p-2 border border-emerald-200">
+                  <div class="flex justify-between items-center">
+                    <div>
+                      <span class="text-xs font-semibold text-slate-700">Energy Return</span>
+                      <span class="text-[10px] text-slate-400 ml-1">= COR²</span>
+                    </div>
+                    <span class="text-sm font-mono font-bold text-emerald-700">
+                      {fmt(state().energyReturnPercent, 1, '%')}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="bg-white rounded p-2 border border-emerald-200">
+                  <div class="flex justify-between items-center">
+                    <div>
+                      <span class="text-xs font-semibold text-slate-700">Bounce Height</span>
+                      <span class="text-[10px] text-slate-400 ml-1">v²/(2g)</span>
+                    </div>
+                    <span class="text-sm font-mono font-bold text-emerald-700">
+                      {fmt(state().bounceHeightCm, 1, ' cm')}
                     </span>
                   </div>
                 </div>

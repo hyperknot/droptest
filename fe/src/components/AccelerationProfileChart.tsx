@@ -20,7 +20,7 @@ const COLOR_JERK = '#a855f7' // Purple
 const COLOR_JERK_WARNING = '#ef4444' // Red - for |jerk| > 2000
 const COLOR_RAW = '#16a34a' // Green
 const COLOR_RANGE_LINE = '#475569' // Slate-600 for DRI range markers
-const COLOR_VELOCITY = '#d97706' // Amber-600
+const COLOR_VELOCITY = '#059669' // Emerald-600
 
 export const AccelerationProfileChart = () => {
   let divRef: HTMLDivElement | undefined

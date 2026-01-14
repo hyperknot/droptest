@@ -13,7 +13,7 @@
           },
           {
             "type": "command",
-            "command": "pnpm eslint-check"
+            "command": "cd ..; pnpm eslint-check"
           }
         ]
       }
