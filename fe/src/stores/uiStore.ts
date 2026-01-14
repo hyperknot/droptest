@@ -147,6 +147,7 @@ class UIStore {
       return
     }
 
+    // findFirstHitRange now includes backward search for free fall start
     const range = findFirstHitRange(samples)
     if (range) {
       this.setVisibleTimeRange(range.min, range.max)
@@ -280,10 +281,14 @@ class UIStore {
     }
 
     // DRI over the visible window (using filtered acceleration)
-    const driRes = computeDRIForWindow(processedSamples, {
-      minMs: visibleTimeRange.min,
-      maxMs: visibleTimeRange.max,
-    })
+    const driRes = computeDRIForWindow(
+      processedSamples,
+      {
+        minMs: visibleTimeRange.min,
+        maxMs: visibleTimeRange.max,
+      },
+      this.state.sampleRateHz,
+    )
 
     if (peakAccel === Number.NEGATIVE_INFINITY) {
       this.setState('peakAccel', null)

@@ -60,7 +60,8 @@ export function detectOriginTime(
 }
 
 /**
- * Find the time range around the first impact peak.
+ * Find the time range around the first impact peak, starting from free fall.
+ * Searches backward from the peak to find where free fall begins.
  * Uses ProcessedSample (requires accelFiltered).
  */
 export function findFirstHitRange(samples: Array<ProcessedSample>): TimeRange | null {
@@ -81,12 +82,25 @@ export function findFirstHitRange(samples: Array<ProcessedSample>): TimeRange | 
   // No significant peak found - data may not contain an impact event
   if (peakIdx === -1) return null
 
-  const t = samples[peakIdx].timeMs
-  const dataStart = samples[0].timeMs
+  // Search backward from peak to find free fall start
+  const FREE_FALL_THRESHOLD = -0.85
+  const MAX_SEARCH_BACK_MS = 500
+  const peakTimeMs = samples[peakIdx].timeMs
+  const searchMinTime = peakTimeMs - MAX_SEARCH_BACK_MS
+
+  let startIdx = peakIdx
+  for (let i = peakIdx - 1; i >= 0; i--) {
+    if (samples[i].timeMs < searchMinTime) break
+    if (samples[i].accelFiltered < FREE_FALL_THRESHOLD) {
+      startIdx = i
+      break
+    }
+  }
+
   const dataEnd = samples[samples.length - 1].timeMs
 
   return {
-    min: Math.max(dataStart, t - 50),
-    max: Math.min(dataEnd, t + 100),
+    min: samples[startIdx].timeMs,
+    max: Math.min(dataEnd, peakTimeMs + 100),
   }
 }

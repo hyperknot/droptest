@@ -35,6 +35,10 @@ export interface DRIResult {
   omegaN: number
   zeta: number
 
+  // Actual window used (may differ from requested if we searched backward for free fall)
+  actualWindowMinMs: number
+  actualWindowMaxMs: number
+
   // Debugging diagnostics (not shown in UI):
   baselineG: number
   baselineSamples: number
@@ -43,9 +47,22 @@ export interface DRIResult {
 export function computeDRIForWindow(
   samples: Array<ProcessedSample>,
   window: { minMs: number; maxMs: number },
+  sampleRateHz?: number,
 ): DRIResult | null {
-  if (samples.length < 2) return null
-  if (!(window.maxMs > window.minMs)) return null
+  console.log('[DRI] computeDRIForWindow called', {
+    samplesLength: samples.length,
+    window,
+    sampleRateHz,
+  })
+
+  if (samples.length < 2) {
+    console.log('[DRI] BAIL: samples.length < 2')
+    return null
+  }
+  if (!(window.maxMs > window.minMs)) {
+    console.log('[DRI] BAIL: window.maxMs <= window.minMs')
+    return null
+  }
 
   // Find indices spanning the requested window.
   let startIdx = -1
@@ -55,19 +72,70 @@ export function computeDRIForWindow(
     if (startIdx === -1 && t >= window.minMs) startIdx = i
     if (t <= window.maxMs) endIdx = i
   }
-  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) return null
+  console.log('[DRI] Window indices', { startIdx, endIdx, windowSamples: endIdx - startIdx + 1 })
 
-  // (1) Require: start-of-window must be in free fall.
-  const FREE_FALL_REQUIRED_G = -0.9
-  const aStartG = samples[startIdx].accelFiltered
-  if (!(aStartG < FREE_FALL_REQUIRED_G)) {
+  // Log first few timestamps around startIdx to check precision
+  if (startIdx >= 0 && startIdx < samples.length) {
+    const sampleTimestamps = []
+    for (let i = startIdx; i < Math.min(startIdx + 10, samples.length); i++) {
+      sampleTimestamps.push(samples[i].timeMs)
+    }
+    console.log('[DRI] First 10 timestamps from startIdx', sampleTimestamps)
+  }
+
+  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
+    console.log('[DRI] BAIL: invalid indices')
     return null
   }
 
-  // (2) Baseline estimate from 200 ms immediately BEFORE window start.
+  // (1) Find where free fall is - search backward from window start if needed.
+  // Note: -0.85 G threshold instead of -0.9 G to account for filtering effects
+  const FREE_FALL_REQUIRED_G = -0.85
+  let aStartG = samples[startIdx].accelFiltered
+  console.log('[DRI] Free fall check at window start', { startIdx, aStartG, threshold: FREE_FALL_REQUIRED_G, pass: aStartG < FREE_FALL_REQUIRED_G })
+
+  // If window start is not in free fall, search backward to find free fall
+  if (!(aStartG < FREE_FALL_REQUIRED_G)) {
+    const MAX_SEARCH_BACK_MS = 500 // Search up to 500ms before window start
+    const searchMinTime = window.minMs - MAX_SEARCH_BACK_MS
+    let foundFreeFall = false
+    let minAccelInSearch = aStartG
+    let minAccelIdx = startIdx
+
+    for (let i = startIdx - 1; i >= 0; i--) {
+      if (samples[i].timeMs < searchMinTime) break
+      const accel = samples[i].accelFiltered
+      if (accel < minAccelInSearch) {
+        minAccelInSearch = accel
+        minAccelIdx = i
+      }
+      if (accel < FREE_FALL_REQUIRED_G) {
+        startIdx = i
+        aStartG = accel
+        foundFreeFall = true
+        console.log('[DRI] Found free fall by searching backward', { newStartIdx: startIdx, timeMs: samples[i].timeMs, aStartG })
+        break
+      }
+    }
+
+    if (!foundFreeFall) {
+      console.log('[DRI] Backward search stats', {
+        searchedFrom: startIdx,
+        searchMinTime,
+        minAccelFound: minAccelInSearch,
+        minAccelIdx,
+        minAccelTimeMs: samples[minAccelIdx]?.timeMs,
+      })
+      console.log('[DRI] BAIL: no free fall found within search range')
+      return null
+    }
+  }
+
+  // (2) Baseline estimate from 200 ms immediately BEFORE the actual start (which may have been adjusted).
   const BASELINE_LOOKBACK_MS = 200
-  const baselineMinT = Math.max(samples[0].timeMs, window.minMs - BASELINE_LOOKBACK_MS)
-  const baselineMaxT = window.minMs
+  const actualStartTimeMs = samples[startIdx].timeMs
+  const baselineMinT = Math.max(samples[0].timeMs, actualStartTimeMs - BASELINE_LOOKBACK_MS)
+  const baselineMaxT = actualStartTimeMs
 
   let baselineSum = 0
   let baselineCount = 0
@@ -81,8 +149,14 @@ export function computeDRIForWindow(
       }
     }
   }
-  if (baselineCount === 0) return null
+  console.log('[DRI] Baseline search', { baselineMinT, baselineMaxT, baselineCount })
+
+  if (baselineCount === 0) {
+    console.log('[DRI] BAIL: no baseline samples found')
+    return null
+  }
   const baselineG = baselineSum / baselineCount
+  console.log('[DRI] Baseline result', { baselineG, baselineCount })
 
   const omega = DRI_OMEGA_N
   const zeta = DRI_ZETA
@@ -118,11 +192,27 @@ export function computeDRIForWindow(
   }
 
   // (3) Integrate only inside the window and stop at window end.
+  // Use fixed dt from sample rate if provided (more reliable than timestamp differences,
+  // which may have limited precision at high sample rates like 6000 Hz).
+  const fixedDt = sampleRateHz ? 1 / sampleRateHz : null
+  console.log('[DRI] Integration setup', { fixedDt, sampleRateHz, iterations: endIdx - startIdx })
+
+  let iterCount = 0
+  let skippedCount = 0
+
   for (let i = startIdx; i < endIdx; i++) {
-    const t0 = samples[i].timeMs
-    const t1 = samples[i + 1].timeMs
-    const dt = (t1 - t0) / 1000
-    if (!(dt > 0)) continue
+    let dt: number
+    if (fixedDt !== null) {
+      dt = fixedDt
+    } else {
+      const t0 = samples[i].timeMs
+      const t1 = samples[i + 1].timeMs
+      dt = (t1 - t0) / 1000
+      if (!(dt > 0)) {
+        skippedCount++
+        continue
+      }
+    }
 
     // Use the SAME filtered series, corrected by the baseline:
     // free fall (~-1 G) becomes ~0 G loading.
@@ -134,9 +224,13 @@ export function computeDRIForWindow(
 
     const ax = Math.abs(x)
     if (ax > deltaMax) deltaMax = ax
+    iterCount++
   }
 
+  console.log('[DRI] Integration done', { iterCount, skippedCount, deltaMax, x, v })
+
   const dri = (omega * omega * deltaMax) / G0
+  console.log('[DRI] Final result', { dri, deltaMaxMm: deltaMax * 1000 })
 
   return {
     dri,
@@ -144,6 +238,8 @@ export function computeDRIForWindow(
     deltaMaxMm: deltaMax * 1000,
     omegaN: omega,
     zeta,
+    actualWindowMinMs: samples[startIdx].timeMs,
+    actualWindowMaxMs: samples[endIdx].timeMs,
     baselineG,
     baselineSamples: baselineCount,
   }
