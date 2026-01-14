@@ -1,12 +1,8 @@
 import { createStore, type SetStoreFunction } from 'solid-js/store'
 import { parseRawCSV } from '../lib/csv-parser'
 import { cfcFilter } from '../lib/filter/cfc'
-import {
-  detectOriginTime,
-  estimateSampleRateHz,
-  findFirstHitRange,
-  logSampleRateDiagnostics,
-} from '../lib/filter/range'
+import { detectOriginTime, findFirstHitRange, logSampleRateDiagnostics } from '../lib/filter/range'
+import { resampleToUniform } from '../lib/filter/resample'
 import { sgFilter } from '../lib/filter/sg'
 import { computeDRIForWindow } from '../lib/metrics/dri'
 import type { ProcessedSample, RawSample } from '../types'
@@ -205,19 +201,23 @@ class UIStore {
       const text = await file.text()
       const rawData = parseRawCSV(text) // RawSample[]
 
-      // Log comprehensive sample rate diagnostics
+      // Log comprehensive sample rate diagnostics (before resampling)
       logSampleRateDiagnostics(file.name, rawData)
 
-      const rate = estimateSampleRateHz(rawData)
+      // Resample to uniform time grid using median dt
+      const { samples: uniformData, sampleRateHz: rate } = resampleToUniform(rawData)
 
-      // CFC filter for origin detection
-      const accelForOrigin = rawData.map((s) => s.accelRaw)
+      // Log diagnostics after resampling (should show uniform dt)
+      logSampleRateDiagnostics(`${file.name} (resampled)`, uniformData)
+
+      // CFC filter for origin detection (on uniform data)
+      const accelForOrigin = uniformData.map((s) => s.accelRaw)
       const filteredForOrigin = cfcFilter(accelForOrigin, rate, 75)
 
-      const originTime = detectOriginTime(rawData, filteredForOrigin)
+      const originTime = detectOriginTime(uniformData, filteredForOrigin)
 
-      // Trim raw samples to origin and rebase time
-      const trimmedRaw: Array<RawSample> = rawData
+      // Trim resampled data to origin and rebase time
+      const trimmedRaw: Array<RawSample> = uniformData
         .filter((s) => s.timeMs >= originTime)
         .map((s) => ({
           timeMs: s.timeMs - originTime,
