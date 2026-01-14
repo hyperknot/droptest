@@ -273,9 +273,8 @@ class UIStore {
         if (s.accelFiltered > peakAccel) {
           peakAccel = s.accelFiltered
         }
-        const absJerk = Math.abs(s.jerkSG)
-        if (absJerk > peakJerk) {
-          peakJerk = absJerk
+        if (s.jerkSG > peakJerk) {
+          peakJerk = s.jerkSG
         }
       }
     }
