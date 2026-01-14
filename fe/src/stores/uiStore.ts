@@ -31,6 +31,9 @@ interface UIState {
   driDeltaMaxMm: number | null
   energyJPerKg: number | null
 
+  // The computed "hit range" for DRI calculation markers
+  hitRange: { min: number; max: number } | null
+
   // UI state
   rangeRequest: { type: 'full' | 'firstHit'; id: number } | null
   isDragging: boolean
@@ -120,6 +123,8 @@ class UIStore {
       driDeltaMaxMm: null,
       energyJPerKg: null,
 
+      hitRange: null,
+
       rangeRequest: null,
       isDragging: false,
       error: null,
@@ -152,7 +157,9 @@ class UIStore {
     // findFirstHitRange now includes backward search for free fall start
     const range = findFirstHitRange(samples)
     if (range) {
-      this.setVisibleTimeRange(range.min, range.max)
+      // Add 50ms padding to the end for UI display
+      const dataEnd = samples[samples.length - 1].timeMs
+      this.setVisibleTimeRange(range.min, Math.min(dataEnd, range.max + 50))
     } else {
       // Fallback: if no peak found, use full range
       this.setVisibleTimeRange(samples[0].timeMs, samples[samples.length - 1].timeMs)
@@ -187,6 +194,7 @@ class UIStore {
     this.setState('dri', null)
     this.setState('driDeltaMaxMm', null)
     this.setState('energyJPerKg', null)
+    this.setState('hitRange', null)
 
     try {
       const text = await file.text()
@@ -232,6 +240,7 @@ class UIStore {
       this.setState('dri', null)
       this.setState('driDeltaMaxMm', null)
       this.setState('energyJPerKg', null)
+      this.setState('hitRange', null)
       return
     }
 
@@ -244,6 +253,10 @@ class UIStore {
         const minT = processed[0].timeMs
         const maxT = processed[processed.length - 1].timeMs
         this.setState('visibleTimeRange', { min: minT, max: maxT })
+
+        // Calculate and store the hit range for DRI markers
+        const hitRange = findFirstHitRange(processed)
+        this.setState('hitRange', hitRange)
       }
 
       this.recomputePeaks()
@@ -257,6 +270,7 @@ class UIStore {
       this.setState('dri', null)
       this.setState('driDeltaMaxMm', null)
       this.setState('energyJPerKg', null)
+      this.setState('hitRange', null)
     }
   }
 

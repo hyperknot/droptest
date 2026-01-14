@@ -19,6 +19,7 @@ const COLOR_ACCEL_WARNING = '#f97316' // Orange - for accel > 42g
 const COLOR_JERK = '#a855f7' // Purple
 const COLOR_JERK_WARNING = '#ef4444' // Red - for |jerk| > 2000
 const COLOR_RAW = '#16a34a' // Green
+const COLOR_RANGE_LINE = '#475569' // Slate-600 for DRI range markers
 
 export const AccelerationProfileChart = () => {
   let divRef: HTMLDivElement | undefined
@@ -189,6 +190,23 @@ export const AccelerationProfileChart = () => {
           showSymbol: false,
           lineStyle: { width: 2.5 },
           data: samples.map((s) => [s.timeMs, s.accelFiltered]),
+          markLine: {
+            symbol: 'none',
+            silent: true,
+            label: { show: false },
+            lineStyle: {
+              color: COLOR_RANGE_LINE,
+              width: 1,
+              type: [4, 4], // dashed: 4px dash, 4px gap
+              opacity: 0.6,
+            },
+            data: uiStore.state.hitRange
+              ? [
+                  { xAxis: uiStore.state.hitRange.min },
+                  { xAxis: uiStore.state.hitRange.max },
+                ]
+              : [],
+          },
           z: 2,
         },
         {
@@ -234,7 +252,9 @@ export const AccelerationProfileChart = () => {
           const lastT = samples[samples.length - 1].timeMs
           if (lastT > 0) {
             start = (range.min / lastT) * 100
-            end = (range.max / lastT) * 100
+            // Add 50ms padding to the end for UI display
+            const rangeMaxWithPadding = Math.min(lastT, range.max + 50)
+            end = (rangeMaxWithPadding / lastT) * 100
           }
         }
       } catch (err) {

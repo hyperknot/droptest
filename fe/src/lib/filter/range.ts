@@ -97,10 +97,17 @@ export function findFirstHitRange(samples: Array<ProcessedSample>): TimeRange | 
     }
   }
 
-  const dataEnd = samples[samples.length - 1].timeMs
+  // Search forward from peak until accel drops below -0.85 G (back to free fall)
+  let endIdx = peakIdx
+  for (let i = peakIdx + 1; i < samples.length; i++) {
+    if (samples[i].accelFiltered < FREE_FALL_THRESHOLD) {
+      endIdx = i
+      break
+    }
+  }
 
   return {
     min: samples[startIdx].timeMs,
-    max: Math.min(dataEnd, peakTimeMs + 100),
+    max: samples[endIdx].timeMs,
   }
 }
