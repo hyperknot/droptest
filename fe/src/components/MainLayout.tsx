@@ -213,9 +213,7 @@ export const MainLayout = () => {
             <SectionHeader colorClass="bg-amber-600" title="Impact Energy" />
             <div class="bg-white p-3 rounded border border-slate-200 text-[11px] text-slate-700 shadow-sm">
               <div class="font-mono leading-snug space-y-0.5">
-                <div>E/m = ½v²</div>
-                <div>v = ∫a·dt (velocity from accel)</div>
-                <div>same range as DRI</div>
+                <div>Work In Progress</div>
               </div>
               <div class="border-t border-slate-200 mt-2 pt-2 flex justify-between items-baseline">
                 <span class="text-xs font-bold text-slate-700">Energy</span>
