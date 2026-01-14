@@ -76,7 +76,16 @@ export const MainLayout = () => {
   const state = () => uiStore.state
   const dri = () => uiStore.state.dri
   const driDeltaMaxMm = () => uiStore.state.driDeltaMaxMm
-  const energyJPerKg = () => uiStore.state.energyJPerKg
+
+  const fmt = (v: number | null, digits: number, suffix: string) => {
+    if (v == null) return '—'
+    return `${v.toFixed(digits)}${suffix}`
+  }
+
+  const fmtNum = (v: number | null, digits: number) => {
+    if (v == null) return '—'
+    return v.toFixed(digits)
+  }
 
   return (
     <div class="h-screen flex overflow-hidden bg-white">
@@ -181,16 +190,91 @@ export const MainLayout = () => {
 
           <hr class="border-slate-200" />
 
+          {/* Energy Section */}
+          <section>
+            <SectionHeader colorClass="bg-amber-600" title="Impact Energy" />
+            <div class="bg-white p-3 rounded border border-slate-200 text-[11px] text-slate-700 shadow-sm">
+              <div class="flex items-center justify-between gap-3">
+                <div class="font-mono leading-snug space-y-0.5">
+                  <div>Always uses filtered acceleration</div>
+                  <div>v(t) computed by integrating a(t) from t0 with v(t0)=0</div>
+                  <div>Impact window detected around the strongest peak in the visible range</div>
+                  <div>Energy per mass: 0.5 * v² (J/kg)</div>
+                  <div>COR: e = v_rebound / v_impact, Energy return = e²</div>
+                  <div>Bounce height: h = v_rebound² / (2g)</div>
+                </div>
+
+                <label class="flex items-center gap-2 text-xs select-none">
+                  <input
+                    type="checkbox"
+                    checked={state().showVelocityOnChart}
+                    onInput={(e) => uiStore.setShowVelocityOnChart(e.currentTarget.checked)}
+                  />
+                  Show v(t)
+                </label>
+              </div>
+
+              <div class="border-t border-slate-200 mt-2 pt-2 space-y-1.5">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-bold text-slate-700">v before</span>
+                  <span class="font-mono">{fmt(state().impactVelocityBeforeMps, 2, ' m/s')}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-bold text-slate-700">v after</span>
+                  <span class="font-mono">{fmt(state().impactVelocityAfterMps, 2, ' m/s')}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-bold text-slate-700">Δv</span>
+                  <span class="font-mono">{fmt(state().impactDeltaVelocityMps, 2, ' m/s')}</span>
+                </div>
+
+                <div class="border-t border-slate-200 mt-2 pt-2 space-y-1.5">
+                  <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-700">COR (e)</span>
+                    <span class="font-mono">{fmtNum(state().cor, 3)}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-700">Energy return</span>
+                    <span class="font-mono">{fmt(state().energyReturnPercent, 1, '%')}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-700">Bounce height</span>
+                    <span class="font-mono">{fmt(state().bounceHeightCm, 1, ' cm')}</span>
+                  </div>
+                </div>
+
+                <div class="border-t border-slate-200 mt-2 pt-2">
+                  <div class="flex justify-between items-baseline">
+                    <span class="text-xs font-bold text-slate-700">Absorbed</span>
+                    <span class="text-xl font-mono font-bold text-amber-700">
+                      {state().absorbedEnergyJPerKg?.toFixed(1) ?? '—'}
+                      <span class="text-sm ml-1">J/kg</span>
+                    </span>
+                  </div>
+                  <div class="flex justify-between items-center mt-1 text-xs text-slate-500">
+                    <span>Impact / rebound</span>
+                    <span class="font-mono">
+                      {state().impactEnergyJPerKg?.toFixed(1) ?? '—'}
+                      {' / '}
+                      {state().reboundEnergyJPerKg?.toFixed(1) ?? '—'}
+                      {' J/kg'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <hr class="border-slate-200" />
+
           {/* DRI Section */}
           <section>
             <SectionHeader colorClass="bg-slate-800" title="DRI (Dynamic Response Index)" />
             <div class="bg-white p-3 rounded border border-slate-200 text-[11px] text-slate-700 shadow-sm">
               <div class="font-mono leading-snug space-y-0.5">
-                <div>Work In Progress - Not Correct</div>
                 <div>model: x" + 2ζωx' + ω²x = -a(t)</div>
                 <div>DRI = ω²·max(|x|)/g</div>
                 <div>ω=52.9 rad/s, ζ=0.224</div>
-                <div>range: peak ± until accel {'<'} -0.85G</div>
               </div>
               <div class="border-t border-slate-200 mt-2 pt-2 flex justify-between items-baseline">
                 <span class="text-xs font-bold text-slate-700">DRI</span>
@@ -204,25 +288,6 @@ export const MainLayout = () => {
                   <span class="font-mono">{driDeltaMaxMm()!.toFixed(2)} mm</span>
                 </div>
               )}
-            </div>
-          </section>
-
-          <hr class="border-slate-200" />
-
-          {/* Energy Section */}
-          <section>
-            <SectionHeader colorClass="bg-amber-600" title="Impact Energy" />
-            <div class="bg-white p-3 rounded border border-slate-200 text-[11px] text-slate-700 shadow-sm">
-              <div class="font-mono leading-snug space-y-0.5">
-                <div>Work In Progress - Not Correct</div>
-              </div>
-              <div class="border-t border-slate-200 mt-2 pt-2 flex justify-between items-baseline">
-                <span class="text-xs font-bold text-slate-700">Energy</span>
-                <span class="text-xl font-mono font-bold text-amber-700">
-                  {energyJPerKg() != null ? energyJPerKg()!.toFixed(1) : '—'}
-                  <span class="text-sm ml-1">J/kg</span>
-                </span>
-              </div>
             </div>
           </section>
         </div>

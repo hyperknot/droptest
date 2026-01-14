@@ -1,10 +1,11 @@
 import { createStore, type SetStoreFunction } from 'solid-js/store'
 import { parseRawCSV } from '../lib/csv-parser'
 import { cfcFilter } from '../lib/filter/cfc'
-import { detectOriginTime, findFirstHitRange, logSampleRateDiagnostics } from '../lib/filter/range'
+import { detectOriginTime, findFirstHitRange } from '../lib/filter/range'
 import { resampleToUniform } from '../lib/filter/resample'
 import { sgFilter } from '../lib/filter/sg'
 import { computeDRIForWindow } from '../lib/metrics/dri'
+import { computeImpactEnergyForWindow, computeVelocityTimeline } from '../lib/metrics/energy'
 import type { ProcessedSample, RawSample } from '../types'
 
 interface UIState {
@@ -27,10 +28,27 @@ interface UIState {
   peakAccel: number | null
   peakJerk: number | null
 
-  // DRI and energy over the visible window
+  // DRI over the visible window
   dri: number | null
   driDeltaMaxMm: number | null
-  energyJPerKg: number | null
+
+  // Velocity timeline (computed from filtered accel)
+  velocityTimelineMps: Array<number>
+  showVelocityOnChart: boolean
+
+  // Impact energy + velocities (computed around the strongest peak in the visible window)
+  impactVelocityBeforeMps: number | null
+  impactVelocityAfterMps: number | null
+  impactDeltaVelocityMps: number | null
+
+  impactEnergyJPerKg: number | null
+  reboundEnergyJPerKg: number | null
+  absorbedEnergyJPerKg: number | null
+
+  // Bounce metrics
+  cor: number | null
+  energyReturnPercent: number | null
+  bounceHeightCm: number | null
 
   // The computed "hit range" for DRI calculation markers
   hitRange: { min: number; max: number } | null
@@ -122,7 +140,21 @@ class UIStore {
 
       dri: null,
       driDeltaMaxMm: null,
-      energyJPerKg: null,
+
+      velocityTimelineMps: [],
+      showVelocityOnChart: false,
+
+      impactVelocityBeforeMps: null,
+      impactVelocityAfterMps: null,
+      impactDeltaVelocityMps: null,
+
+      impactEnergyJPerKg: null,
+      reboundEnergyJPerKg: null,
+      absorbedEnergyJPerKg: null,
+
+      cor: null,
+      energyReturnPercent: null,
+      bounceHeightCm: null,
 
       hitRange: null,
 
@@ -138,6 +170,10 @@ class UIStore {
 
   setIsDragging(v: boolean) {
     this.setState('isDragging', v)
+  }
+
+  setShowVelocityOnChart(v: boolean) {
+    this.setState('showVelocityOnChart', v)
   }
 
   setRangeRequest(type: 'full' | 'firstHit') {
@@ -194,7 +230,20 @@ class UIStore {
     this.setState('peakJerk', null)
     this.setState('dri', null)
     this.setState('driDeltaMaxMm', null)
-    this.setState('energyJPerKg', null)
+
+    this.setState('velocityTimelineMps', [])
+
+    this.setState('impactVelocityBeforeMps', null)
+    this.setState('impactVelocityAfterMps', null)
+    this.setState('impactDeltaVelocityMps', null)
+    this.setState('impactEnergyJPerKg', null)
+    this.setState('reboundEnergyJPerKg', null)
+    this.setState('absorbedEnergyJPerKg', null)
+
+    this.setState('cor', null)
+    this.setState('energyReturnPercent', null)
+    this.setState('bounceHeightCm', null)
+
     this.setState('hitRange', null)
 
     try {
@@ -248,7 +297,20 @@ class UIStore {
       this.setState('peakJerk', null)
       this.setState('dri', null)
       this.setState('driDeltaMaxMm', null)
-      this.setState('energyJPerKg', null)
+
+      this.setState('velocityTimelineMps', [])
+
+      this.setState('impactVelocityBeforeMps', null)
+      this.setState('impactVelocityAfterMps', null)
+      this.setState('impactDeltaVelocityMps', null)
+      this.setState('impactEnergyJPerKg', null)
+      this.setState('reboundEnergyJPerKg', null)
+      this.setState('absorbedEnergyJPerKg', null)
+
+      this.setState('cor', null)
+      this.setState('energyReturnPercent', null)
+      this.setState('bounceHeightCm', null)
+
       this.setState('hitRange', null)
       return
     }
@@ -266,6 +328,12 @@ class UIStore {
         // Calculate and store the hit range for DRI markers
         const hitRange = findFirstHitRange(processed)
         this.setState('hitRange', hitRange)
+
+        // Calculate velocity for the whole timeline, from t0 (always uses filtered accel data)
+        const vel = computeVelocityTimeline(processed, { baselineWindowMs: 200 })
+        this.setState('velocityTimelineMps', vel.velocityMps)
+      } else {
+        this.setState('velocityTimelineMps', [])
       }
 
       this.recomputePeaks()
@@ -278,20 +346,44 @@ class UIStore {
       this.setState('peakJerk', null)
       this.setState('dri', null)
       this.setState('driDeltaMaxMm', null)
-      this.setState('energyJPerKg', null)
+
+      this.setState('velocityTimelineMps', [])
+
+      this.setState('impactVelocityBeforeMps', null)
+      this.setState('impactVelocityAfterMps', null)
+      this.setState('impactDeltaVelocityMps', null)
+      this.setState('impactEnergyJPerKg', null)
+      this.setState('reboundEnergyJPerKg', null)
+      this.setState('absorbedEnergyJPerKg', null)
+
+      this.setState('cor', null)
+      this.setState('energyReturnPercent', null)
+      this.setState('bounceHeightCm', null)
+
       this.setState('hitRange', null)
     }
   }
 
   private recomputePeaks() {
-    const { processedSamples, visibleTimeRange } = this.state
+    const { processedSamples, visibleTimeRange, velocityTimelineMps } = this.state
 
     if (processedSamples.length === 0 || !visibleTimeRange) {
       this.setState('peakAccel', null)
       this.setState('peakJerk', null)
       this.setState('dri', null)
       this.setState('driDeltaMaxMm', null)
-      this.setState('energyJPerKg', null)
+
+      this.setState('impactVelocityBeforeMps', null)
+      this.setState('impactVelocityAfterMps', null)
+      this.setState('impactDeltaVelocityMps', null)
+
+      this.setState('impactEnergyJPerKg', null)
+      this.setState('reboundEnergyJPerKg', null)
+      this.setState('absorbedEnergyJPerKg', null)
+
+      this.setState('cor', null)
+      this.setState('energyReturnPercent', null)
+      this.setState('bounceHeightCm', null)
       return
     }
 
@@ -319,18 +411,53 @@ class UIStore {
       this.state.sampleRateHz,
     )
 
+    const energyRes = computeImpactEnergyForWindow(
+      processedSamples,
+      velocityTimelineMps,
+      {
+        minMs: visibleTimeRange.min,
+        maxMs: visibleTimeRange.max,
+      },
+      {
+        freeFallThresholdG: -0.85,
+        minPeakG: 5,
+      },
+    )
+
     if (peakAccel === Number.NEGATIVE_INFINITY) {
       this.setState('peakAccel', null)
       this.setState('peakJerk', null)
       this.setState('dri', null)
       this.setState('driDeltaMaxMm', null)
-      this.setState('energyJPerKg', null)
+
+      this.setState('impactVelocityBeforeMps', null)
+      this.setState('impactVelocityAfterMps', null)
+      this.setState('impactDeltaVelocityMps', null)
+
+      this.setState('impactEnergyJPerKg', null)
+      this.setState('reboundEnergyJPerKg', null)
+      this.setState('absorbedEnergyJPerKg', null)
+
+      this.setState('cor', null)
+      this.setState('energyReturnPercent', null)
+      this.setState('bounceHeightCm', null)
     } else {
       this.setState('peakAccel', peakAccel)
       this.setState('peakJerk', peakJerk)
       this.setState('dri', driRes?.dri ?? null)
       this.setState('driDeltaMaxMm', driRes?.deltaMaxMm ?? null)
-      this.setState('energyJPerKg', driRes?.energyJPerKg ?? null)
+
+      this.setState('impactVelocityBeforeMps', energyRes?.vBeforeMps ?? null)
+      this.setState('impactVelocityAfterMps', energyRes?.vAfterMps ?? null)
+      this.setState('impactDeltaVelocityMps', energyRes?.deltaVMps ?? null)
+
+      this.setState('impactEnergyJPerKg', energyRes?.impactEnergyJPerKg ?? null)
+      this.setState('reboundEnergyJPerKg', energyRes?.reboundEnergyJPerKg ?? null)
+      this.setState('absorbedEnergyJPerKg', energyRes?.absorbedEnergyJPerKg ?? null)
+
+      this.setState('cor', energyRes?.cor ?? null)
+      this.setState('energyReturnPercent', energyRes?.energyReturnPercent ?? null)
+      this.setState('bounceHeightCm', energyRes?.bounceHeightCm ?? null)
     }
   }
 }

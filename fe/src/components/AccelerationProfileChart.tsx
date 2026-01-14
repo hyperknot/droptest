@@ -20,6 +20,7 @@ const COLOR_JERK = '#a855f7' // Purple
 const COLOR_JERK_WARNING = '#ef4444' // Red - for |jerk| > 2000
 const COLOR_RAW = '#16a34a' // Green
 const COLOR_RANGE_LINE = '#475569' // Slate-600 for DRI range markers
+const COLOR_VELOCITY = '#d97706' // Amber-600
 
 export const AccelerationProfileChart = () => {
   let divRef: HTMLDivElement | undefined
@@ -54,7 +55,7 @@ export const AccelerationProfileChart = () => {
 
     chartInst.setOption({
       animation: false,
-      grid: { left: 70, right: 70, top: 30, bottom: 40 },
+      grid: { left: 90, right: 70, top: 30, bottom: 40 },
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'cross' },
@@ -63,7 +64,12 @@ export const AccelerationProfileChart = () => {
           let html = `<b>${Number(t).toFixed(1)} ms</b><br/>`
           params.forEach((p: any) => {
             if (p.value[1] != null) {
-              html += `${p.marker} ${p.seriesName}: ${p.value[1].toFixed(1)}<br/>`
+              const v = p.value[1]
+              if (p.seriesName === 'Velocity') {
+                html += `${p.marker} ${p.seriesName}: ${v.toFixed(2)}<br/>`
+              } else {
+                html += `${p.marker} ${p.seriesName}: ${v.toFixed(1)}<br/>`
+              }
             }
           })
           return html
@@ -94,6 +100,20 @@ export const AccelerationProfileChart = () => {
           },
           splitLine: { show: false },
         },
+        // Left axis (offset): Velocity (amber)
+        {
+          type: 'value',
+          name: 'Velocity (m/s)',
+          position: 'left',
+          offset: 52,
+          axisLine: { show: true, lineStyle: { color: COLOR_VELOCITY } },
+          nameTextStyle: { color: COLOR_VELOCITY },
+          axisLabel: {
+            color: COLOR_VELOCITY,
+            formatter: (v: number) => v.toFixed(1),
+          },
+          splitLine: { show: false },
+        },
         // Right axis: Accel (blue)
         {
           type: 'value',
@@ -121,6 +141,9 @@ export const AccelerationProfileChart = () => {
   // DATA UPDATE
   createEffect(() => {
     const samples = uiStore.state.processedSamples
+    const velocity = uiStore.state.velocityTimelineMps
+    const showVel = uiStore.state.showVelocityOnChart
+
     if (!chartInst || samples.length === 0) return
 
     // Calculate actual data ranges
@@ -131,7 +154,13 @@ export const AccelerationProfileChart = () => {
     let jerkMin = Number.POSITIVE_INFINITY
     let jerkMax = Number.NEGATIVE_INFINITY
 
-    for (const s of samples) {
+    let velMin = Number.POSITIVE_INFINITY
+    let velMax = Number.NEGATIVE_INFINITY
+
+    const hasVel = showVel && velocity.length === samples.length
+
+    for (let i = 0; i < samples.length; i++) {
+      const s = samples[i]
       const raw = s.accelRaw
       const filtered = s.accelFiltered
       const jerk = s.jerkSG
@@ -142,6 +171,12 @@ export const AccelerationProfileChart = () => {
       if (filtered > accelFilteredMax) accelFilteredMax = filtered
       if (jerk < jerkMin) jerkMin = jerk
       if (jerk > jerkMax) jerkMax = jerk
+
+      if (hasVel) {
+        const v = velocity[i]
+        if (v < velMin) velMin = v
+        if (v > velMax) velMax = v
+      }
     }
 
     const accelMin = Math.min(accelRawMin, accelFilteredMin)
@@ -152,9 +187,13 @@ export const AccelerationProfileChart = () => {
     const yJerkMin = Math.min(JERK_DEFAULT_MIN, jerkMin - 100)
     const yJerkMax = Math.max(JERK_DEFAULT_MAX, jerkMax + 100)
 
+    const yVelMin = hasVel ? velMin - 0.5 : 0
+    const yVelMax = hasVel ? velMax + 0.5 : 1
+
     chartInst.setOption({
       yAxis: [
         { min: yJerkMin, max: yJerkMax },
+        { min: yVelMin, max: yVelMax, show: hasVel },
         { min: yAccelMin, max: yAccelMax },
       ],
       visualMap: [
@@ -177,7 +216,7 @@ export const AccelerationProfileChart = () => {
         {
           name: 'Accel raw',
           type: 'line',
-          yAxisIndex: 1,
+          yAxisIndex: 2,
           showSymbol: false,
           lineStyle: { color: COLOR_RAW, width: 1.5, opacity: 0.5 },
           data: samples.map((s) => [s.timeMs, s.accelRaw]),
@@ -186,7 +225,7 @@ export const AccelerationProfileChart = () => {
         {
           name: 'Accel filtered',
           type: 'line',
-          yAxisIndex: 1,
+          yAxisIndex: 2,
           showSymbol: false,
           lineStyle: { width: 2.5 },
           data: samples.map((s) => [s.timeMs, s.accelFiltered]),
@@ -201,10 +240,7 @@ export const AccelerationProfileChart = () => {
               opacity: 0.6,
             },
             data: uiStore.state.hitRange
-              ? [
-                  { xAxis: uiStore.state.hitRange.min },
-                  { xAxis: uiStore.state.hitRange.max },
-                ]
+              ? [{ xAxis: uiStore.state.hitRange.min }, { xAxis: uiStore.state.hitRange.max }]
               : [],
           },
           z: 2,
@@ -229,6 +265,15 @@ export const AccelerationProfileChart = () => {
             data: [{ yAxis: 0 }],
           },
           z: 3,
+        },
+        {
+          name: 'Velocity',
+          type: 'line',
+          yAxisIndex: 1,
+          showSymbol: false,
+          lineStyle: { width: 2, color: COLOR_VELOCITY, opacity: 0.9 },
+          data: hasVel ? samples.map((s, i) => [s.timeMs, velocity[i]]) : [],
+          z: 4,
         },
       ],
     })

@@ -37,7 +37,7 @@ export function diagnoseSampleRate(samples: Array<RawSample>): SampleRateDiagnos
   if (samples.length < 10) return null
 
   const n = samples.length
-  const deltas: number[] = []
+  const deltas: Array<number> = []
   let duplicateTimestamps = 0
   let nonMonotonicCount = 0
   let largestGapMs = 0
@@ -156,11 +156,12 @@ export function logSampleRateDiagnostics(filename: string, samples: Array<RawSam
   })
 
   // Issues summary
-  const issues: string[] = []
+  const issues: Array<string> = []
   if (diag.duplicateTimestamps > 0) issues.push(`${diag.duplicateTimestamps} duplicate timestamps`)
   if (diag.nonMonotonicCount > 0) issues.push(`${diag.nonMonotonicCount} non-monotonic timestamps`)
   if (diag.gapCount > 0) issues.push(`${diag.gapCount} gaps (>2x median dt)`)
-  if (diag.rateVariationPercent > 10) issues.push(`${diag.rateVariationPercent.toFixed(1)}% rate variation`)
+  if (diag.rateVariationPercent > 10)
+    issues.push(`${diag.rateVariationPercent.toFixed(1)}% rate variation`)
 
   if (issues.length > 0) {
     console.warn('Issues detected:', issues.join(', '))
@@ -170,7 +171,7 @@ export function logSampleRateDiagnostics(filename: string, samples: Array<RawSam
 
   console.log('Gap analysis:', {
     gapCount: diag.gapCount,
-    gapThreshold: (diag.medianDtMs * 2).toFixed(4) + ' ms',
+    gapThreshold: `${(diag.medianDtMs * 2).toFixed(4)} ms`,
     largestGapMs: diag.largestGapMs.toFixed(4),
     largestGapIndex: diag.largestGapIndex,
   })
@@ -188,21 +189,24 @@ export function logSampleRateDiagnostics(filename: string, samples: Array<RawSam
   const dtRange = diag.maxDtMs - diag.minDtMs
   const isUniform = dtRange < diag.medianDtMs * 0.001 // less than 0.1% variation
 
+  // Compute positive deltas here (fixes TS error and matches diagnoseSampleRate semantics)
+  const positiveDeltas: Array<number> = []
+  for (let i = 0; i < samples.length - 1; i++) {
+    const dt = samples[i + 1].timeMs - samples[i].timeMs
+    if (dt > 0) positiveDeltas.push(dt)
+  }
+
   if (isUniform) {
-    console.log(`Delta-time: uniform at ${diag.medianDtMs.toFixed(4)} ms (${positiveDeltas.length} samples)`)
+    console.log(
+      `Delta-time: uniform at ${diag.medianDtMs.toFixed(4)} ms (${positiveDeltas.length} samples)`,
+    )
   } else {
     const bucketCount = 10
     const bucketSize = dtRange / bucketCount
     const histogram: Array<{ range: string; count: number }> = []
     const buckets = new Array(bucketCount).fill(0)
 
-    const deltas: number[] = []
-    for (let i = 0; i < samples.length - 1; i++) {
-      const dt = samples[i + 1].timeMs - samples[i].timeMs
-      if (dt > 0) deltas.push(dt)
-    }
-
-    for (const dt of deltas) {
+    for (const dt of positiveDeltas) {
       const bucket = Math.min(Math.floor((dt - diag.minDtMs) / bucketSize), bucketCount - 1)
       buckets[bucket]++
     }

@@ -36,10 +36,6 @@ export interface DRIResult {
   omegaN: number
   zeta: number
 
-  // Energy absorbed during impact (J/kg, i.e. per unit mass)
-  // Computed as 0.5 * v_impact², where v_impact is the velocity at impact start
-  energyJPerKg: number
-
   // Actual window used (may differ from requested if we searched backward for free fall)
   actualWindowMinMs: number
   actualWindowMaxMs: number
@@ -174,11 +170,6 @@ export function computeDRIForWindow(
 
   const fixedDt = rateMatchesTimestamps ? fixedDtFromRate : actualDtFromTimestamps
 
-  // For energy calculation: integrate corrected accel to get velocity change.
-  // Since the object starts at impact velocity and ends ~stopped,
-  // the integrated velocity change equals the impact velocity.
-  let velocityIntegral = 0
-
   for (let i = startIdx; i < endIdx; i++) {
     const dt = fixedDt
 
@@ -190,19 +181,11 @@ export function computeDRIForWindow(
 
     rk4Step(dt, a0, aMid, a1)
 
-    // Trapezoidal integration for velocity
-    velocityIntegral += aMid * dt
-
     const ax = Math.abs(x)
     if (ax > deltaMax) deltaMax = ax
   }
 
   const dri = (omega * omega * deltaMax) / G0
-
-  // Impact velocity = velocity change during impact (object stops at end)
-  // Energy per unit mass = 0.5 * v²
-  const impactVelocity = Math.abs(velocityIntegral)
-  const energyJPerKg = 0.5 * impactVelocity * impactVelocity
 
   return {
     dri,
@@ -210,7 +193,6 @@ export function computeDRIForWindow(
     deltaMaxMm: deltaMax * 1000,
     omegaN: omega,
     zeta,
-    energyJPerKg,
     actualWindowMinMs: samples[startIdx].timeMs,
     actualWindowMaxMs: samples[endIdx].timeMs,
     baselineG,
