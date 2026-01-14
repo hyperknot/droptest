@@ -1,19 +1,33 @@
 {
   "hooks": {
-    "Stop": [
+    "PostToolUse": [
       {
+        "matcher": "Edit|MultiEdit|Write",
         "hooks": [
           {
             "type": "command",
-            "command": "cd ..; pnpm biome check --write --unsafe ."
-          },
+            "command": "cd ..; pnpm biome check --write --unsafe .",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
           {
             "type": "command",
-            "command": "pnpm typecheck"
-          },
+            "command": "pnpm typecheck",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
           {
             "type": "command",
-            "command": "cd ..; pnpm eslint-check"
+            "command": "cd ..; pnpm eslint-check",
+            "timeout": 30
           }
         ]
       }
