@@ -1,7 +1,12 @@
 import { createStore, type SetStoreFunction } from 'solid-js/store'
 import { parseRawCSV } from '../lib/csv-parser'
 import { cfcFilter } from '../lib/filter/cfc'
-import { detectOriginTime, estimateSampleRateHz, findFirstHitRange } from '../lib/filter/range'
+import {
+  detectOriginTime,
+  estimateSampleRateHz,
+  findFirstHitRange,
+  logSampleRateDiagnostics,
+} from '../lib/filter/range'
 import { sgFilter } from '../lib/filter/sg'
 import { computeDRIForWindow } from '../lib/metrics/dri'
 import type { ProcessedSample, RawSample } from '../types'
@@ -199,6 +204,10 @@ class UIStore {
     try {
       const text = await file.text()
       const rawData = parseRawCSV(text) // RawSample[]
+
+      // Log comprehensive sample rate diagnostics
+      logSampleRateDiagnostics(file.name, rawData)
+
       const rate = estimateSampleRateHz(rawData)
 
       // CFC filter for origin detection

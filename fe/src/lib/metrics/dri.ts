@@ -159,9 +159,20 @@ export function computeDRIForWindow(
   }
 
   // (5) Integrate within the detected range (from free fall to free fall).
-  // Use fixed dt from sample rate if provided (more reliable than timestamp differences,
-  // which may have limited precision at high sample rates like 6000 Hz).
-  const fixedDt = sampleRateHz ? 1 / sampleRateHz : null
+  // Calculate actual dt from timestamps in the integration range (more reliable than
+  // the global sampleRateHz estimate, which may not match the actual spacing).
+  const actualDurationMs = samples[endIdx].timeMs - samples[startIdx].timeMs
+  const numSteps = endIdx - startIdx
+  const actualDtFromTimestamps = actualDurationMs / 1000 / numSteps
+
+  // Use the sampleRate-based dt only if it closely matches the actual timestamps
+  // (within 5% tolerance). Otherwise fall back to timestamp-based dt.
+  const fixedDtFromRate = sampleRateHz ? 1 / sampleRateHz : null
+  const rateMatchesTimestamps =
+    fixedDtFromRate !== null &&
+    Math.abs(fixedDtFromRate - actualDtFromTimestamps) / actualDtFromTimestamps < 0.05
+
+  const fixedDt = rateMatchesTimestamps ? fixedDtFromRate : actualDtFromTimestamps
 
   // For energy calculation: integrate corrected accel to get velocity change.
   // Since the object starts at impact velocity and ends ~stopped,
@@ -169,15 +180,7 @@ export function computeDRIForWindow(
   let velocityIntegral = 0
 
   for (let i = startIdx; i < endIdx; i++) {
-    let dt: number
-    if (fixedDt !== null) {
-      dt = fixedDt
-    } else {
-      const t0 = samples[i].timeMs
-      const t1 = samples[i + 1].timeMs
-      dt = (t1 - t0) / 1000
-      if (!(dt > 0)) continue
-    }
+    const dt = fixedDt
 
     // Use the SAME filtered series, corrected by the baseline:
     // free fall (~-1 G) becomes ~0 G loading.
