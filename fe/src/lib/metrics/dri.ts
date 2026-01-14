@@ -13,11 +13,12 @@
  * - ~0 G at rest
  * - ~-1 G in free fall
  *
- * "One-bounce" windowed approach implemented here (per your requirements):
- * 1) Require the window start sample to be in free fall (< -0.9 G), else refuse.
- * 2) If OK, compute baseline average over the 200 ms interval immediately BEFORE window start,
- *    and use that as the subtraction value (typically ~-1 G).
- * 3) Integrate only inside the window (stop exactly at window end).
+ * Range detection:
+ * 1) Find the peak acceleration within the visible window
+ * 2) Search backward from peak until accel < -0.85 G (free fall threshold)
+ * 3) Search forward from peak until accel < -0.85 G (back to free fall)
+ * 4) Compute baseline from 200ms before the start
+ * 5) Integrate within this detected range
  *
  * This uses the SAME series as displayed ("accelFiltered"), i.e. same CFC slider.
  */
@@ -35,6 +36,10 @@ export interface DRIResult {
   omegaN: number
   zeta: number
 
+  // Energy absorbed during impact (J/kg, i.e. per unit mass)
+  // Computed as 0.5 * v_impact², where v_impact is the velocity at impact start
+  energyJPerKg: number
+
   // Actual window used (may differ from requested if we searched backward for free fall)
   actualWindowMinMs: number
   actualWindowMaxMs: number
@@ -49,89 +54,56 @@ export function computeDRIForWindow(
   window: { minMs: number; maxMs: number },
   sampleRateHz?: number,
 ): DRIResult | null {
-  console.log('[DRI] computeDRIForWindow called', {
-    samplesLength: samples.length,
-    window,
-    sampleRateHz,
-  })
-
-  if (samples.length < 2) {
-    console.log('[DRI] BAIL: samples.length < 2')
-    return null
-  }
-  if (!(window.maxMs > window.minMs)) {
-    console.log('[DRI] BAIL: window.maxMs <= window.minMs')
-    return null
-  }
+  if (samples.length < 2) return null
+  if (!(window.maxMs > window.minMs)) return null
 
   // Find indices spanning the requested window.
-  let startIdx = -1
-  let endIdx = -1
+  let windowStartIdx = -1
+  let windowEndIdx = -1
   for (let i = 0; i < samples.length; i++) {
     const t = samples[i].timeMs
-    if (startIdx === -1 && t >= window.minMs) startIdx = i
-    if (t <= window.maxMs) endIdx = i
-  }
-  console.log('[DRI] Window indices', { startIdx, endIdx, windowSamples: endIdx - startIdx + 1 })
-
-  // Log first few timestamps around startIdx to check precision
-  if (startIdx >= 0 && startIdx < samples.length) {
-    const sampleTimestamps = []
-    for (let i = startIdx; i < Math.min(startIdx + 10, samples.length); i++) {
-      sampleTimestamps.push(samples[i].timeMs)
-    }
-    console.log('[DRI] First 10 timestamps from startIdx', sampleTimestamps)
+    if (windowStartIdx === -1 && t >= window.minMs) windowStartIdx = i
+    if (t <= window.maxMs) windowEndIdx = i
   }
 
-  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
-    console.log('[DRI] BAIL: invalid indices')
-    return null
-  }
+  if (windowStartIdx === -1 || windowEndIdx === -1 || windowEndIdx <= windowStartIdx) return null
 
-  // (1) Find where free fall is - search backward from window start if needed.
-  // Note: -0.85 G threshold instead of -0.9 G to account for filtering effects
-  const FREE_FALL_REQUIRED_G = -0.85
-  let aStartG = samples[startIdx].accelFiltered
-  console.log('[DRI] Free fall check at window start', { startIdx, aStartG, threshold: FREE_FALL_REQUIRED_G, pass: aStartG < FREE_FALL_REQUIRED_G })
-
-  // If window start is not in free fall, search backward to find free fall
-  if (!(aStartG < FREE_FALL_REQUIRED_G)) {
-    const MAX_SEARCH_BACK_MS = 500 // Search up to 500ms before window start
-    const searchMinTime = window.minMs - MAX_SEARCH_BACK_MS
-    let foundFreeFall = false
-    let minAccelInSearch = aStartG
-    let minAccelIdx = startIdx
-
-    for (let i = startIdx - 1; i >= 0; i--) {
-      if (samples[i].timeMs < searchMinTime) break
-      const accel = samples[i].accelFiltered
-      if (accel < minAccelInSearch) {
-        minAccelInSearch = accel
-        minAccelIdx = i
-      }
-      if (accel < FREE_FALL_REQUIRED_G) {
-        startIdx = i
-        aStartG = accel
-        foundFreeFall = true
-        console.log('[DRI] Found free fall by searching backward', { newStartIdx: startIdx, timeMs: samples[i].timeMs, aStartG })
-        break
-      }
-    }
-
-    if (!foundFreeFall) {
-      console.log('[DRI] Backward search stats', {
-        searchedFrom: startIdx,
-        searchMinTime,
-        minAccelFound: minAccelInSearch,
-        minAccelIdx,
-        minAccelTimeMs: samples[minAccelIdx]?.timeMs,
-      })
-      console.log('[DRI] BAIL: no free fall found within search range')
-      return null
+  // (1) Find the peak acceleration within the visible window
+  let peakIdx = windowStartIdx
+  let peakVal = samples[windowStartIdx].accelFiltered
+  for (let i = windowStartIdx; i <= windowEndIdx; i++) {
+    if (samples[i].accelFiltered > peakVal) {
+      peakVal = samples[i].accelFiltered
+      peakIdx = i
     }
   }
 
-  // (2) Baseline estimate from 200 ms immediately BEFORE the actual start (which may have been adjusted).
+  // Need a significant peak (> 5G) to compute DRI
+  if (peakVal < 5) return null
+
+  const FREE_FALL_THRESHOLD = -0.85
+
+  // (2) Search backward from peak until accel < -0.85 G (free fall)
+  let startIdx = peakIdx
+  for (let i = peakIdx - 1; i >= 0; i--) {
+    if (samples[i].accelFiltered < FREE_FALL_THRESHOLD) {
+      startIdx = i
+      break
+    }
+  }
+
+  // (3) Search forward from peak until accel < -0.85 G (back to free fall)
+  let endIdx = peakIdx
+  for (let i = peakIdx + 1; i < samples.length; i++) {
+    if (samples[i].accelFiltered < FREE_FALL_THRESHOLD) {
+      endIdx = i
+      break
+    }
+  }
+
+  if (endIdx <= startIdx) return null
+
+  // (4) Baseline estimate from 200 ms immediately BEFORE the start.
   const BASELINE_LOOKBACK_MS = 200
   const actualStartTimeMs = samples[startIdx].timeMs
   const baselineMinT = Math.max(samples[0].timeMs, actualStartTimeMs - BASELINE_LOOKBACK_MS)
@@ -149,14 +121,9 @@ export function computeDRIForWindow(
       }
     }
   }
-  console.log('[DRI] Baseline search', { baselineMinT, baselineMaxT, baselineCount })
 
-  if (baselineCount === 0) {
-    console.log('[DRI] BAIL: no baseline samples found')
-    return null
-  }
+  if (baselineCount === 0) return null
   const baselineG = baselineSum / baselineCount
-  console.log('[DRI] Baseline result', { baselineG, baselineCount })
 
   const omega = DRI_OMEGA_N
   const zeta = DRI_ZETA
@@ -191,14 +158,15 @@ export function computeDRIForWindow(
     v += (dt / 6) * (k1.dv + 2 * k2.dv + 2 * k3.dv + k4.dv)
   }
 
-  // (3) Integrate only inside the window and stop at window end.
+  // (5) Integrate within the detected range (from free fall to free fall).
   // Use fixed dt from sample rate if provided (more reliable than timestamp differences,
   // which may have limited precision at high sample rates like 6000 Hz).
   const fixedDt = sampleRateHz ? 1 / sampleRateHz : null
-  console.log('[DRI] Integration setup', { fixedDt, sampleRateHz, iterations: endIdx - startIdx })
 
-  let iterCount = 0
-  let skippedCount = 0
+  // For energy calculation: integrate corrected accel to get velocity change.
+  // Since the object starts at impact velocity and ends ~stopped,
+  // the integrated velocity change equals the impact velocity.
+  let velocityIntegral = 0
 
   for (let i = startIdx; i < endIdx; i++) {
     let dt: number
@@ -208,10 +176,7 @@ export function computeDRIForWindow(
       const t0 = samples[i].timeMs
       const t1 = samples[i + 1].timeMs
       dt = (t1 - t0) / 1000
-      if (!(dt > 0)) {
-        skippedCount++
-        continue
-      }
+      if (!(dt > 0)) continue
     }
 
     // Use the SAME filtered series, corrected by the baseline:
@@ -222,15 +187,19 @@ export function computeDRIForWindow(
 
     rk4Step(dt, a0, aMid, a1)
 
+    // Trapezoidal integration for velocity
+    velocityIntegral += aMid * dt
+
     const ax = Math.abs(x)
     if (ax > deltaMax) deltaMax = ax
-    iterCount++
   }
 
-  console.log('[DRI] Integration done', { iterCount, skippedCount, deltaMax, x, v })
-
   const dri = (omega * omega * deltaMax) / G0
-  console.log('[DRI] Final result', { dri, deltaMaxMm: deltaMax * 1000 })
+
+  // Impact velocity = velocity change during impact (object stops at end)
+  // Energy per unit mass = 0.5 * v²
+  const impactVelocity = Math.abs(velocityIntegral)
+  const energyJPerKg = 0.5 * impactVelocity * impactVelocity
 
   return {
     dri,
@@ -238,6 +207,7 @@ export function computeDRIForWindow(
     deltaMaxMm: deltaMax * 1000,
     omegaN: omega,
     zeta,
+    energyJPerKg,
     actualWindowMinMs: samples[startIdx].timeMs,
     actualWindowMaxMs: samples[endIdx].timeMs,
     baselineG,

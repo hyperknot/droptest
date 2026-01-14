@@ -26,9 +26,10 @@ interface UIState {
   peakAccel: number | null
   peakJerk: number | null
 
-  // DRI over the visible window
+  // DRI and energy over the visible window
   dri: number | null
   driDeltaMaxMm: number | null
+  energyJPerKg: number | null
 
   // UI state
   rangeRequest: { type: 'full' | 'firstHit'; id: number } | null
@@ -117,6 +118,7 @@ class UIStore {
 
       dri: null,
       driDeltaMaxMm: null,
+      energyJPerKg: null,
 
       rangeRequest: null,
       isDragging: false,
@@ -184,6 +186,7 @@ class UIStore {
     this.setState('peakJerk', null)
     this.setState('dri', null)
     this.setState('driDeltaMaxMm', null)
+    this.setState('energyJPerKg', null)
 
     try {
       const text = await file.text()
@@ -228,6 +231,7 @@ class UIStore {
       this.setState('peakJerk', null)
       this.setState('dri', null)
       this.setState('driDeltaMaxMm', null)
+      this.setState('energyJPerKg', null)
       return
     }
 
@@ -252,6 +256,7 @@ class UIStore {
       this.setState('peakJerk', null)
       this.setState('dri', null)
       this.setState('driDeltaMaxMm', null)
+      this.setState('energyJPerKg', null)
     }
   }
 
@@ -263,6 +268,7 @@ class UIStore {
       this.setState('peakJerk', null)
       this.setState('dri', null)
       this.setState('driDeltaMaxMm', null)
+      this.setState('energyJPerKg', null)
       return
     }
 
@@ -295,11 +301,13 @@ class UIStore {
       this.setState('peakJerk', null)
       this.setState('dri', null)
       this.setState('driDeltaMaxMm', null)
+      this.setState('energyJPerKg', null)
     } else {
       this.setState('peakAccel', peakAccel)
       this.setState('peakJerk', peakJerk)
       this.setState('dri', driRes?.dri ?? null)
       this.setState('driDeltaMaxMm', driRes?.deltaMaxMm ?? null)
+      this.setState('energyJPerKg', driRes?.energyJPerKg ?? null)
     }
   }
 }
