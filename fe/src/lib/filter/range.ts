@@ -185,9 +185,14 @@ export function logSampleRateDiagnostics(filename: string, samples: Array<RawSam
   )
 
   // Histogram of dt values (10 buckets)
-  const bucketCount = 10
-  const bucketSize = (diag.maxDtMs - diag.minDtMs) / bucketCount
-  if (bucketSize > 0) {
+  const dtRange = diag.maxDtMs - diag.minDtMs
+  const isUniform = dtRange < diag.medianDtMs * 0.001 // less than 0.1% variation
+
+  if (isUniform) {
+    console.log(`Delta-time: uniform at ${diag.medianDtMs.toFixed(4)} ms (${positiveDeltas.length} samples)`)
+  } else {
+    const bucketCount = 10
+    const bucketSize = dtRange / bucketCount
     const histogram: Array<{ range: string; count: number }> = []
     const buckets = new Array(bucketCount).fill(0)
 

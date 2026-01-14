@@ -202,13 +202,13 @@ class UIStore {
       const rawData = parseRawCSV(text) // RawSample[]
 
       // Log comprehensive sample rate diagnostics (before resampling)
-      logSampleRateDiagnostics(file.name, rawData)
+      // logSampleRateDiagnostics(file.name, rawData)
 
       // Resample to uniform time grid using median dt
       const { samples: uniformData, sampleRateHz: rate } = resampleToUniform(rawData)
 
       // Log diagnostics after resampling (should show uniform dt)
-      logSampleRateDiagnostics(`${file.name} (resampled)`, uniformData)
+      // logSampleRateDiagnostics(`${file.name} (resampled)`, uniformData)
 
       // CFC filter for origin detection (on uniform data)
       const accelForOrigin = uniformData.map((s) => s.accelRaw)
