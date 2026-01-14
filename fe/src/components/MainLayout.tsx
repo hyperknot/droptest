@@ -186,6 +186,7 @@ export const MainLayout = () => {
             <SectionHeader colorClass="bg-slate-800" title="DRI (Dynamic Response Index)" />
             <div class="bg-white p-3 rounded border border-slate-200 text-[11px] text-slate-700 shadow-sm">
               <div class="font-mono leading-snug space-y-0.5">
+                <div>Work In Progress - Not Correct</div>
                 <div>model: x" + 2ζωx' + ω²x = -a(t)</div>
                 <div>DRI = ω²·max(|x|)/g</div>
                 <div>ω=52.9 rad/s, ζ=0.224</div>
@@ -213,7 +214,7 @@ export const MainLayout = () => {
             <SectionHeader colorClass="bg-amber-600" title="Impact Energy" />
             <div class="bg-white p-3 rounded border border-slate-200 text-[11px] text-slate-700 shadow-sm">
               <div class="font-mono leading-snug space-y-0.5">
-                <div>Work In Progress</div>
+                <div>Work In Progress - Not Correct</div>
               </div>
               <div class="border-t border-slate-200 mt-2 pt-2 flex justify-between items-baseline">
                 <span class="text-xs font-bold text-slate-700">Energy</span>
