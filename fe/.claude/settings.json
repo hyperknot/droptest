@@ -1,0 +1,22 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd ..; pnpm biome check --write --unsafe ."
+          },
+          {
+            "type": "command",
+            "command": "pnpm typecheck"
+          },
+          {
+            "type": "command",
+            "command": "pnpm eslint-check"
+          }
+        ]
+      }
+    ]
+  }
+}

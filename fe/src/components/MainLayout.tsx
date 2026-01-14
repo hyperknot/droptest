@@ -196,9 +196,7 @@ export const MainLayout = () => {
             <div class="bg-white p-3 rounded border border-slate-200 text-[11px] text-slate-700 shadow-sm">
               <div class="flex items-center justify-between gap-3">
                 <div class="font-mono leading-snug space-y-0.5">
-                  <div>Always uses filtered acceleration</div>
-                  <div>v(t) computed by integrating a(t) from t0 with v(t0)=0</div>
-                  <div>Impact window detected around the strongest peak in the visible range</div>
+                  <div>v(t) computed by integrating a(t)</div>
                   <div>Energy per mass: 0.5 * v² (J/kg)</div>
                   <div>COR: e = v_rebound / v_impact, Energy return = e²</div>
                   <div>Bounce height: h = v_rebound² / (2g)</div>

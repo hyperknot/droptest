@@ -3,7 +3,7 @@ import type { RawSample } from '../../types'
 /**
  * Computes the median of an array of numbers.
  */
-function median(arr: number[]): number {
+function median(arr: Array<number>): number {
   if (arr.length === 0) return 0
   const sorted = [...arr].sort((a, b) => a - b)
   const mid = Math.floor(sorted.length / 2)
@@ -19,7 +19,7 @@ function lerp(t: number, t0: number, t1: number, v0: number, v1: number): number
 }
 
 export interface ResampleResult {
-  samples: RawSample[]
+  samples: Array<RawSample>
   sampleRateHz: number
   medianDtMs: number
 }
@@ -32,7 +32,7 @@ export interface ResampleResult {
  * - Linear interpolates acceleration values onto uniform grid
  * - Output contains exactly uniform dt between all samples (no gaps, no duplicates)
  */
-export function resampleToUniform(samples: RawSample[]): ResampleResult {
+export function resampleToUniform(samples: Array<RawSample>): ResampleResult {
   if (samples.length < 2) {
     return {
       samples: [...samples],
@@ -45,7 +45,7 @@ export function resampleToUniform(samples: RawSample[]): ResampleResult {
   const sorted = [...samples].sort((a, b) => a.timeMs - b.timeMs)
 
   // Compute all positive time deltas
-  const deltas: number[] = []
+  const deltas: Array<number> = []
   for (let i = 0; i < sorted.length - 1; i++) {
     const dt = sorted[i + 1].timeMs - sorted[i].timeMs
     if (dt > 0) {
@@ -74,7 +74,7 @@ export function resampleToUniform(samples: RawSample[]): ResampleResult {
   // Number of samples in output (round to ensure we cover the full range)
   const numSamples = Math.round(totalDuration / medianDtMs) + 1
 
-  const resampled: RawSample[] = []
+  const resampled: Array<RawSample> = []
 
   // Track position in original sorted array for interpolation
   let srcIdx = 0
