@@ -50,8 +50,14 @@ export function computeDRIForWindow(
   window: { minMs: number; maxMs: number },
   sampleRateHz?: number,
 ): DRIResult | null {
-  if (samples.length < 2) return null
-  if (!(window.maxMs > window.minMs)) return null
+  if (samples.length < 2) {
+    console.log('[DRI] Too few samples:', samples.length)
+    return null
+  }
+  if (!(window.maxMs > window.minMs)) {
+    console.log('[DRI] Invalid window:', window)
+    return null
+  }
 
   // Find indices spanning the requested window.
   let windowStartIdx = -1
@@ -62,7 +68,10 @@ export function computeDRIForWindow(
     if (t <= window.maxMs) windowEndIdx = i
   }
 
-  if (windowStartIdx === -1 || windowEndIdx === -1 || windowEndIdx <= windowStartIdx) return null
+  if (windowStartIdx === -1 || windowEndIdx === -1 || windowEndIdx <= windowStartIdx) {
+    console.log('[DRI] Window indices invalid:', { windowStartIdx, windowEndIdx, window })
+    return null
+  }
 
   // (1) Find the peak acceleration within the visible window
   let peakIdx = windowStartIdx
@@ -75,51 +84,115 @@ export function computeDRIForWindow(
   }
 
   // Need a significant peak (> 5G) to compute DRI
-  if (peakVal < 5) return null
+  if (peakVal < 5) {
+    console.log('[DRI] Peak too low:', { peakVal, peakIdx })
+    return null
+  }
 
   const FREE_FALL_THRESHOLD = -0.85
 
   // (2) Search backward from peak until accel < -0.85 G (free fall)
-  let startIdx = peakIdx
-  for (let i = peakIdx - 1; i >= 0; i--) {
+  // If not found, use window start (plate-press case)
+  let startIdx = windowStartIdx // default to window start
+  let foundStartFreeFall = false
+  for (let i = peakIdx - 1; i >= windowStartIdx; i--) {
     if (samples[i].accelFiltered < FREE_FALL_THRESHOLD) {
       startIdx = i
+      foundStartFreeFall = true
       break
     }
   }
 
   // (3) Search forward from peak until accel < -0.85 G (back to free fall)
-  let endIdx = peakIdx
-  for (let i = peakIdx + 1; i < samples.length; i++) {
+  // If not found, use window end (plate-press case)
+  let endIdx = windowEndIdx // default to window end
+  let foundEndFreeFall = false
+  for (let i = peakIdx + 1; i <= windowEndIdx; i++) {
     if (samples[i].accelFiltered < FREE_FALL_THRESHOLD) {
       endIdx = i
+      foundEndFreeFall = true
       break
     }
   }
 
-  if (endIdx <= startIdx) return null
+  const isPlatePressCase = !foundStartFreeFall && !foundEndFreeFall
 
-  // (4) Baseline estimate from 200 ms immediately BEFORE the start.
-  const BASELINE_LOOKBACK_MS = 200
-  const actualStartTimeMs = samples[startIdx].timeMs
-  const baselineMinT = Math.max(samples[0].timeMs, actualStartTimeMs - BASELINE_LOOKBACK_MS)
-  const baselineMaxT = actualStartTimeMs
+  console.log('[DRI] Range detection:', {
+    peakIdx,
+    peakVal: peakVal.toFixed(2),
+    peakTimeMs: samples[peakIdx].timeMs.toFixed(1),
+    foundStartFreeFall,
+    foundEndFreeFall,
+    isPlatePressCase,
+    startIdx,
+    endIdx,
+    windowStartIdx,
+    windowEndIdx,
+  })
 
-  let baselineSum = 0
-  let baselineCount = 0
-  for (let i = 0; i < samples.length; i++) {
-    const t = samples[i].timeMs
-    if (t >= baselineMinT && t <= baselineMaxT) {
-      const aG = samples[i].accelFiltered
-      if (Number.isFinite(aG)) {
-        baselineSum += aG
-        baselineCount++
-      }
-    }
+  if (endIdx <= startIdx) {
+    console.log('[DRI] endIdx <= startIdx, returning null')
+    return null
   }
 
-  if (baselineCount === 0) return null
-  const baselineG = baselineSum / baselineCount
+  // (4) Baseline estimate
+  // For plate-press: use first/last samples (similar to energy baseline)
+  // For drop test: use 200ms before start
+  let baselineG: number
+  let baselineCount: number
+
+  if (isPlatePressCase) {
+    // Use first and last few samples as baseline (they should be at rest ~0G)
+    const nEdge = Math.min(5, Math.floor((endIdx - startIdx) / 4))
+    const startSamples = samples.slice(startIdx, startIdx + Math.max(1, nEdge))
+    const endSamples = samples.slice(endIdx - Math.max(1, nEdge) + 1, endIdx + 1)
+
+    const startMean =
+      startSamples.reduce((sum, s) => sum + s.accelFiltered, 0) / startSamples.length
+    const endMean = endSamples.reduce((sum, s) => sum + s.accelFiltered, 0) / endSamples.length
+
+    baselineG = (startMean + endMean) / 2
+    baselineCount = startSamples.length + endSamples.length
+
+    console.log('[DRI] Plate-press baseline:', {
+      nEdge,
+      startMean: startMean.toFixed(3),
+      endMean: endMean.toFixed(3),
+      baselineG: baselineG.toFixed(3),
+    })
+  } else {
+    // Original: 200ms before start
+    const BASELINE_LOOKBACK_MS = 200
+    const actualStartTimeMs = samples[startIdx].timeMs
+    const baselineMinT = Math.max(samples[0].timeMs, actualStartTimeMs - BASELINE_LOOKBACK_MS)
+    const baselineMaxT = actualStartTimeMs
+
+    let baselineSum = 0
+    baselineCount = 0
+    for (let i = 0; i < samples.length; i++) {
+      const t = samples[i].timeMs
+      if (t >= baselineMinT && t <= baselineMaxT) {
+        const aG = samples[i].accelFiltered
+        if (Number.isFinite(aG)) {
+          baselineSum += aG
+          baselineCount++
+        }
+      }
+    }
+
+    if (baselineCount === 0) {
+      console.log('[DRI] No baseline samples found')
+      return null
+    }
+    baselineG = baselineSum / baselineCount
+
+    console.log('[DRI] Drop-test baseline:', {
+      baselineMinT: baselineMinT.toFixed(1),
+      baselineMaxT: baselineMaxT.toFixed(1),
+      baselineCount,
+      baselineG: baselineG.toFixed(3),
+    })
+  }
 
   const omega = DRI_OMEGA_N
   const zeta = DRI_ZETA
@@ -186,6 +259,16 @@ export function computeDRIForWindow(
   }
 
   const dri = (omega * omega * deltaMax) / G0
+
+  console.log('[DRI] Integration result:', {
+    startIdx,
+    endIdx,
+    numSteps: endIdx - startIdx,
+    fixedDt: (fixedDt * 1000).toFixed(3) + ' ms',
+    deltaMax: deltaMax.toFixed(6) + ' m',
+    deltaMaxMm: (deltaMax * 1000).toFixed(3) + ' mm',
+    dri: dri.toFixed(2),
+  })
 
   return {
     dri,
