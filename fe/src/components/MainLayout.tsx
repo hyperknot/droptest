@@ -226,69 +226,61 @@ export const MainLayout = () => {
 
           {/* All metrics in clean rows */}
           <div class="space-y-3 text-sm">
-            {/* Main absorbed energy */}
-            <div class="flex justify-between items-baseline border-b border-neutral-200 pb-3">
-              <div>
-                <div class="font-semibold text-gray-900">Energy Absorbed</div>
-                <div class="text-[10px] text-gray-500">Impact − Rebound</div>
+            {/* Velocity row: v before | v after | Δv */}
+            <div class="flex justify-between items-baseline">
+              <div class="text-center">
+                <div class="text-gray-600 text-xs">v before</div>
+                <div class="font-mono font-semibold">
+                  {formatNumber(state().impactVelocityBeforeMps, 2)}
+                </div>
               </div>
-              <div class="text-2xl font-mono font-bold text-gray-900">
-                {formatNumber(state().absorbedEnergyJPerKg, 1)}
-                <span class="text-sm ml-1 font-normal text-gray-600">J/kg</span>
+              <div class="text-center">
+                <div class="text-gray-600 text-xs">v after</div>
+                <div class="font-mono font-semibold">
+                  {formatNumber(state().impactVelocityAfterMps, 2)}
+                </div>
               </div>
-            </div>
-
-            {/* Impact energy */}
-            <div class="flex justify-between items-baseline">
-              <div>
-                <span class="text-gray-700">Impact Energy</span>
-                <span class="text-[10px] text-gray-400 ml-1">½·v²</span>
+              <div class="text-center">
+                <div class="text-gray-600 text-xs">Δv</div>
+                <div class="font-mono font-semibold">
+                  {formatNumber(state().impactDeltaVelocityMps, 2)}
+                </div>
               </div>
-              <span class="font-mono font-semibold">
-                {formatNumber(state().impactEnergyJPerKg, 1, ' J/kg')}
-              </span>
+              <span class="text-gray-600 text-xs self-end">m/s</span>
             </div>
 
-            {/* Rebound energy */}
+            <hr class="border-neutral-300" />
+
+            {/* Energy row: impact | rebound | absorbed */}
             <div class="flex justify-between items-baseline">
-              <div>
-                <span class="text-gray-700">Rebound Energy</span>
-                <span class="text-[10px] text-gray-400 ml-1">½·v²</span>
+              <div class="text-center">
+                <div class="text-gray-600 text-xs">E impact</div>
+                <div class="font-mono font-semibold">
+                  {formatNumber(state().impactEnergyJPerKg, 1)}
+                </div>
               </div>
-              <span class="font-mono font-semibold">
-                {formatNumber(state().reboundEnergyJPerKg, 1, ' J/kg')}
-              </span>
+              <div class="text-center">
+                <div class="text-gray-600 text-xs">E rebound</div>
+                <div class="font-mono font-semibold">
+                  {formatNumber(state().reboundEnergyJPerKg, 1)}
+                </div>
+              </div>
+              <div class="text-center">
+                <div class="text-gray-600 text-xs">E absorbed</div>
+                <div class="font-mono font-semibold">
+                  {formatNumber(state().absorbedEnergyJPerKg, 1)}
+                </div>
+              </div>
+              <span class="text-gray-600 text-xs self-end">J/kg</span>
             </div>
 
-            {/* Velocity before */}
-            <div class="flex justify-between items-baseline">
-              <span class="text-gray-700">Velocity Before</span>
-              <span class="font-mono font-semibold">
-                {formatNumber(state().impactVelocityBeforeMps, 2, ' m/s')}
-              </span>
-            </div>
-
-            {/* Velocity after */}
-            <div class="flex justify-between items-baseline">
-              <span class="text-gray-700">Velocity After</span>
-              <span class="font-mono font-semibold">
-                {formatNumber(state().impactVelocityAfterMps, 2, ' m/s')}
-              </span>
-            </div>
-
-            {/* Delta V */}
-            <div class="flex justify-between items-baseline">
-              <span class="text-gray-700">Δv</span>
-              <span class="font-mono font-semibold">
-                {formatNumber(state().impactDeltaVelocityMps, 2, ' m/s')}
-              </span>
-            </div>
+            <hr class="border-neutral-300" />
 
             {/* COR */}
             <div class="flex justify-between items-baseline">
               <div>
                 <span class="text-gray-700">COR</span>
-                <span class="text-[10px] text-gray-400 ml-1">v_out / v_in</span>
+                <span class="text-xs text-gray-600 ml-1">v_out / v_in</span>
               </div>
               <span class="font-mono font-semibold">{formatNumber(state().cor, 3)}</span>
             </div>
@@ -297,7 +289,7 @@ export const MainLayout = () => {
             <div class="flex justify-between items-baseline">
               <div>
                 <span class="text-gray-700">Energy Return</span>
-                <span class="text-[10px] text-gray-400 ml-1">COR²</span>
+                <span class="text-xs text-gray-600 ml-1">COR²</span>
               </div>
               <span class="font-mono font-semibold">
                 {formatNumber(state().energyReturnPercent, 1, '%')}
@@ -308,9 +300,11 @@ export const MainLayout = () => {
             <div class="flex justify-between items-baseline">
               <div>
                 <span class="text-gray-700">Bounce Height</span>
-                <span class="text-[10px] text-gray-400 ml-1">v²/(2g)</span>
+                <span class="text-xs text-gray-600 ml-1">v²/(2g)</span>
               </div>
-              <span class="font-mono font-semibold">{formatNumber(state().bounceHeightCm, 1, ' cm')}</span>
+              <span class="font-mono font-semibold">
+                {formatNumber(state().bounceHeightCm, 1, ' cm')}
+              </span>
             </div>
           </div>
         </section>
@@ -318,20 +312,22 @@ export const MainLayout = () => {
         {/* DRI Section */}
         <section class="px-4 py-3">
           <SectionHeader title="DRI (Dynamic Response Index)" />
-          <div class="border border-neutral-400 p-3 text-[11px] text-gray-700">
-            <div class="font-mono leading-snug space-y-0.5">
-              <div>model: x" + 2ζωx' + ω²x = -a(t)</div>
-              <div>DRI = ω²·max(|x|)/g</div>
-              <div>ω=52.9 rad/s, ζ=0.224</div>
-            </div>
-            <div class="border-t border-neutral-400 mt-2 pt-2 flex justify-between items-baseline">
-              <span class="text-xs font-bold text-gray-700">DRI</span>
+          <AlgorithmInfo
+            lines={[
+              'model: x" + 2ζωx\' + ω²x = -a(t)',
+              'DRI = ω²·max(|x|)/g',
+              'ω=52.9 rad/s, ζ=0.224',
+            ]}
+          />
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between items-baseline">
+              <span class="text-gray-700">DRI</span>
               <span class="text-xl font-mono font-bold text-gray-900">
                 {formatNumber(dri(), 2)}
               </span>
             </div>
             {driDeltaMaxMm() != null && (
-              <div class="flex justify-between items-center mt-1 text-xs text-gray-500">
+              <div class="flex justify-between items-baseline text-gray-600">
                 <span>Δmax</span>
                 <span class="font-mono">{formatNumber(driDeltaMaxMm(), 2, ' mm')}</span>
               </div>

@@ -213,10 +213,19 @@ export function computeImpactEnergyForWindow(
   const contactStartMs = samples[contactStartIdx].timeMs
   const contactEndMs = samples[contactEndIdx].timeMs
 
-  const vBefore = interpolateSeriesAtTime(samples, velocityTimelineMps, contactStartMs)
-  const vAfter = interpolateSeriesAtTime(samples, velocityTimelineMps, contactEndMs)
-  if (vBefore == null || vAfter == null) return null
+  // Find min and max velocity in the contact window (vBefore = min, vAfter = max)
+  let vMin = Number.POSITIVE_INFINITY
+  let vMax = Number.NEGATIVE_INFINITY
+  for (let i = contactStartIdx; i <= contactEndIdx; i++) {
+    const v = velocityTimelineMps[i]
+    if (v < vMin) vMin = v
+    if (v > vMax) vMax = v
+  }
 
+  if (!Number.isFinite(vMin) || !Number.isFinite(vMax)) return null
+
+  const vBefore = vMin // lowest velocity in range
+  const vAfter = vMax // highest velocity in range
   const deltaV = vAfter - vBefore
 
   // Convention: in your data, free fall (~ -1G) integrates to negative velocity (downwards).
