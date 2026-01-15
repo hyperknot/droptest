@@ -14,7 +14,7 @@ export const AppUI = () => {
 
   return (
     <div
-      class="min-h-screen bg-slate-50 text-gray-900"
+      class="h-screen w-screen bg-white text-gray-900 overflow-hidden"
       onDrop={handleDrop}
       onDragOver={(e) => {
         e.preventDefault()

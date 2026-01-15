@@ -3,49 +3,46 @@ import { uiStore } from '../stores/uiStore'
 
 export const LandingPage = () => {
   return (
-    <div class="max-w-4xl mx-auto py-16 px-6 space-y-8">
-      <header class="space-y-4">
-        <h1 class="text-4xl font-bold tracking-tight">Paragliding Harness Drop Test Visualizer</h1>
-        <p class="text-lg text-gray-600">
-          Visualize and analyze real-world drop test data from harness back protectors.
-        </p>
+    <div class="h-screen w-screen flex items-center justify-center">
+      <div class="max-w-xl w-full px-6">
+        <header class="mb-8">
+          <h1 class="text-2xl font-semibold mb-2">Paragliding Harness Drop Test Visualizer</h1>
+          <p class="text-sm text-gray-600 mb-4">
+            Visualize and analyze real-world drop test data from harness back protectors.
+          </p>
+          <p class="text-sm text-gray-600">
+            <strong>100% Private:</strong> All processing happens locally in your browser.
+          </p>
+          <p class="text-xs text-gray-500 mt-2">
+            <a
+              href="https://github.com/hyperknot/droptest"
+              target="_blank"
+              class="text-blue-600 hover:underline"
+              rel="noopener"
+            >
+              Open source
+            </a>{' '}
+            project by Zsolt Ero.
+          </p>
+        </header>
 
-        <p class="text-gray-600">
-          <strong>100% Private:</strong> All processing happens locally in your browser. Nothing is
-          sent over the internet.
-          <br />
-          You can even turn off your Wi-Fi to test.
-        </p>
-        <p class="text-gray-600">
-          This is an{' '}
-          <a
-            href="https://github.com/hyperknot/droptest"
-            target="_blank"
-            class="text-blue-600 hover:underline font-medium"
-            rel="noopener"
-          >
-            open source
-          </a>{' '}
-          project by Zsolt Ero.
-        </p>
-      </header>
-
-      <div
-        class={`border-2 border-dashed rounded-lg p-16 text-center transition-colors ${
-          uiStore.state.isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-white'
-        }`}
-      >
-        <p class="text-xl font-medium mb-3">Drop a CSV drop test file here</p>
-        <p class="text-sm text-gray-500">
-          Expected format: CSV with columns: time0, datetime, accel
-        </p>
-      </div>
-
-      <Show when={uiStore.state.error}>
-        <div class="text-red-600 bg-red-50 p-4 rounded border border-red-200">
-          {uiStore.state.error}
+        <div
+          class={`border p-12 text-center transition-colors bg-white ${
+            uiStore.state.isDragging ? 'border-black border-2' : 'border-neutral-400'
+          }`}
+        >
+          <p class="text-lg font-medium mb-2">Drop a CSV drop test file here</p>
+          <p class="text-xs text-gray-500">
+            Expected format: CSV with columns: time0, datetime, accel
+          </p>
         </div>
-      </Show>
+
+        <Show when={uiStore.state.error}>
+          <div class="mt-4 border border-black bg-red-50 px-4 py-3 text-sm text-red-900">
+            {uiStore.state.error}
+          </div>
+        </Show>
+      </div>
     </div>
   )
 }
