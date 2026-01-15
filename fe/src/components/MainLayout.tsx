@@ -106,7 +106,7 @@ const formatNumber = (v: number | null, digits: number, unit = '') => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PeakStats = () => (
-  <div class="flex justify-center gap-8 px-4 py-2.5 bg-white border-b border-black">
+  <div class="h-14 flex justify-center items-center gap-8 px-4 bg-white border-b border-black">
     <div class="flex items-center gap-2">
       <span class="text-sm font-medium text-neutral-600">Max Acceleration (G):</span>
       <span class="text-lg font-mono font-bold text-neutral-900">
@@ -123,8 +123,8 @@ const PeakStats = () => (
 )
 
 const SidebarHeader = () => (
-  <div class="p-3">
-    <div class="flex gap-2">
+  <div class="h-14 flex items-center px-3">
+    <div class="flex gap-2 w-full">
       <button
         class="flex-1 px-3 py-1 text-sm font-medium transition-colors border border-neutral-900 bg-white text-neutral-900 hover:bg-neutral-200"
         onClick={() => uiStore.setRangeRequest('firstHit')}
