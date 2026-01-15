@@ -281,48 +281,59 @@ export function detectOriginTime(
   return Math.max(rawSamples[0].timeMs, triggerTime - preEventBufferMs)
 }
 
+const PEAK_THRESHOLD_G = 5
+const FREE_FALL_THRESHOLD_G = -0.85
+
 /**
- * Find the time range around the first impact peak, starting from free fall.
- * Searches backward from the peak to find where free fall begins.
- * Uses ProcessedSample (requires accelFiltered).
+ * Find the time range around the first significant impact.
+ *
+ * Algorithm:
+ * 1. Scan from start to find the first peak > 5G
+ * 2. Go left from peak until reaching -0.85G or first sample
+ * 3. Go right from peak until reaching -0.85G or last sample
+ *
+ * This handles both:
+ * - Drop tests with free-fall before impact
+ * - Plate-press tests where data starts at ~0G (no free-fall)
  */
 export function findFirstHitRange(samples: Array<ProcessedSample>): TimeRange | null {
   if (samples.length === 0) return null
 
-  let peakVal = Number.NEGATIVE_INFINITY
+  // Find first peak > 5G (not the global max - first significant one)
   let peakIdx = -1
-
-  // Find peak (> 10G threshold)
   for (let i = 0; i < samples.length; i++) {
-    const v = samples[i].accelFiltered
-    if (v > 10 && v > peakVal) {
-      peakVal = v
-      peakIdx = i
+    if (samples[i].accelFiltered > PEAK_THRESHOLD_G) {
+      // Found entry into peak region, now find local max
+      let localMax = samples[i].accelFiltered
+      let localMaxIdx = i
+      for (let j = i + 1; j < samples.length; j++) {
+        if (samples[j].accelFiltered > localMax) {
+          localMax = samples[j].accelFiltered
+          localMaxIdx = j
+        }
+        // Stop when we drop below threshold again
+        if (samples[j].accelFiltered < PEAK_THRESHOLD_G) break
+      }
+      peakIdx = localMaxIdx
+      break
     }
   }
 
-  // No significant peak found - data may not contain an impact event
   if (peakIdx === -1) return null
 
-  // Search backward from peak to find free fall start
-  const FREE_FALL_THRESHOLD = -0.85
-  const MAX_SEARCH_BACK_MS = 500
-  const peakTimeMs = samples[peakIdx].timeMs
-  const searchMinTime = peakTimeMs - MAX_SEARCH_BACK_MS
-
-  let startIdx = peakIdx
+  // Go left from peak until -0.85G or first sample
+  let startIdx = 0
   for (let i = peakIdx - 1; i >= 0; i--) {
-    if (samples[i].timeMs < searchMinTime) break
-    if (samples[i].accelFiltered < FREE_FALL_THRESHOLD) {
+    if (samples[i].accelFiltered < FREE_FALL_THRESHOLD_G) {
       startIdx = i
       break
     }
   }
 
-  // Search forward from peak until accel drops below -0.85 G (back to free fall)
-  let endIdx = peakIdx
+  // Go right from peak until -0.85G or last sample
+  let endIdx = samples.length - 1
   for (let i = peakIdx + 1; i < samples.length; i++) {
-    if (samples[i].accelFiltered < FREE_FALL_THRESHOLD) {
+    if (samples[i].accelFiltered < FREE_FALL_THRESHOLD_G) {
       endIdx = i
       break
     }

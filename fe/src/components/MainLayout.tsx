@@ -294,6 +294,17 @@ const DRISection = () => (
         </div>
       )}
     </div>
+    <div class="mt-3">
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={uiStore.state.useFullTimeline}
+          onChange={(e) => uiStore.setUseFullTimeline(e.currentTarget.checked)}
+          class="w-4 h-4 accent-neutral-900"
+        />
+        <span class="text-xs text-neutral-700">Use full timeline for calculations</span>
+      </label>
+    </div>
   </Section>
 )
 

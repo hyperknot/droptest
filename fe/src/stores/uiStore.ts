@@ -24,12 +24,17 @@ interface UIState {
   jerkWindowMs: number // ms
   jerkPolyOrder: 1 | 3 // Savitzky-Golay polynomial order
 
-  // Visible range and computed peaks
+  // When true, DRI uses full timeline instead of hitRange
+  useFullTimeline: boolean
+
+  // Visible range (for UI display - may include padding)
   visibleTimeRange: { min: number; max: number } | null
+
+  // Computed peaks in visible range
   peakAccel: number | null
   peakJerk: number | null
 
-  // DRI over the visible window
+  // DRI over the calculation window (hitRange or full timeline)
   dri: number | null
   driDeltaMaxMm: number | null
 
@@ -51,7 +56,7 @@ interface UIState {
   energyReturnPercent: number | null
   bounceHeightCm: number | null
 
-  // The computed "hit range" for DRI calculation markers
+  // The computed "hit range" for calculations (first peak detection)
   hitRange: { min: number; max: number } | null
 
   // UI state
@@ -137,6 +142,8 @@ class UIStore {
       jerkWindowMs: 17,
       jerkPolyOrder: 3,
 
+      useFullTimeline: false,
+
       visibleTimeRange: null,
       peakAccel: null,
       peakJerk: null,
@@ -177,6 +184,11 @@ class UIStore {
 
   setShowVelocityOnChart(v: boolean) {
     this.setState('showVelocityOnChart', v)
+  }
+
+  setUseFullTimeline(v: boolean) {
+    this.setState('useFullTimeline', v)
+    this.recomputePeaks()
   }
 
   setRangeRequest(type: 'full' | 'firstHit') {
@@ -379,7 +391,8 @@ class UIStore {
   }
 
   private recomputePeaks() {
-    const { processedSamples, visibleTimeRange, velocityTimelineMps } = this.state
+    const { processedSamples, visibleTimeRange, velocityTimelineMps, hitRange, useFullTimeline } =
+      this.state
 
     if (processedSamples.length === 0 || !visibleTimeRange) {
       this.setState('peakAccel', null)
@@ -401,6 +414,7 @@ class UIStore {
       return
     }
 
+    // Peaks are computed from visible range (for display)
     let peakAccel = Number.NEGATIVE_INFINITY
     let peakJerk = 0
 
@@ -415,22 +429,33 @@ class UIStore {
       }
     }
 
-    // DRI over the visible window (using filtered acceleration)
+    // Determine calculation window for DRI and energy
+    // - useFullTimeline: use entire data range
+    // - otherwise: use hitRange (detected first hit boundaries)
+    const fullRange = {
+      minMs: processedSamples[0].timeMs,
+      maxMs: processedSamples[processedSamples.length - 1].timeMs,
+    }
+
+    const calcWindow = useFullTimeline ? fullRange : hitRange ?? visibleTimeRange
+
+    // DRI over the calculation window
     const driRes = computeDRIForWindow(
       processedSamples,
       {
-        minMs: visibleTimeRange.min,
-        maxMs: visibleTimeRange.max,
+        minMs: calcWindow.min,
+        maxMs: calcWindow.max,
       },
       this.state.sampleRateHz,
     )
 
+    // Energy over the calculation window
     const energyRes = computeImpactEnergyForWindow(
       processedSamples,
       velocityTimelineMps,
       {
-        minMs: visibleTimeRange.min,
-        maxMs: visibleTimeRange.max,
+        minMs: calcWindow.min,
+        maxMs: calcWindow.max,
       },
       {
         freeFallThresholdG: -0.85,
