@@ -24,7 +24,7 @@ const SectionHeader = (props: { title: string; color?: string; inline?: boolean 
 )
 
 const AlgorithmInfo = (props: { lines: Array<string | JSX.Element> }) => (
-  <div class="text-[11px] text-gray-600 mb-2">
+  <div class="text-[11px] text-neutral-600 mb-2">
     <div class="font-mono leading-snug space-y-0.5">
       <For each={props.lines}>{(line) => <div class="break-all">{line}</div>}</For>
     </div>
@@ -42,7 +42,7 @@ const SliderControl = (props: {
 }) => (
   <div class="space-y-1 mt-2">
     <div class="flex justify-between items-center">
-      <label class="text-xs font-medium text-gray-700">{props.label}</label>
+      <label class="text-xs font-medium text-neutral-700">{props.label}</label>
       <span class="text-xs font-mono bg-white border border-neutral-300 px-1.5 py-0.5">
         {props.value} {props.unit}
       </span>
@@ -68,7 +68,7 @@ const ToggleButton = (props: {
   <button
     class={`flex-1 px-2 py-1.5 text-xs font-medium transition-colors ${
       props.borderRight ? 'border-r border-black' : ''
-    } ${props.active ? 'bg-neutral-900 text-white' : 'bg-white text-gray-900 hover:bg-gray-100'}`}
+    } ${props.active ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-900 hover:bg-neutral-200'}`}
     onClick={props.onClick}
   >
     {props.children}
@@ -78,11 +78,11 @@ const ToggleButton = (props: {
 const MetricRow = (props: { label: string; hint?: string; value: string; large?: boolean }) => (
   <div class="flex justify-between items-baseline">
     <div>
-      <span class="text-gray-700">{props.label}</span>
-      {props.hint && <span class="text-xs text-gray-600 ml-1">{props.hint}</span>}
+      <span class="text-neutral-700">{props.label}</span>
+      {props.hint && <span class="text-xs text-neutral-600 ml-1">{props.hint}</span>}
     </div>
     <span
-      class={`font-mono font-${props.large ? 'bold' : 'semibold'} ${props.large ? 'text-xl text-gray-900' : ''}`}
+      class={`font-mono font-${props.large ? 'bold' : 'semibold'} ${props.large ? 'text-xl text-neutral-900' : ''}`}
     >
       {props.value}
     </span>
@@ -91,7 +91,7 @@ const MetricRow = (props: { label: string; hint?: string; value: string; large?:
 
 const MetricCell = (props: { label: string; value: string }) => (
   <div class="text-center">
-    <div class="text-gray-600 text-xs">{props.label}</div>
+    <div class="text-neutral-600 text-xs">{props.label}</div>
     <div class="font-mono font-semibold">{props.value}</div>
   </div>
 )
@@ -108,14 +108,14 @@ const formatNumber = (v: number | null, digits: number, unit = '') => {
 const PeakStats = () => (
   <div class="flex justify-center gap-8 px-4 py-2.5 bg-white border-b border-black">
     <div class="flex items-center gap-2">
-      <span class="text-sm font-medium text-gray-600">Max Acceleration (G):</span>
-      <span class="text-lg font-mono font-bold text-gray-900">
+      <span class="text-sm font-medium text-neutral-600">Max Acceleration (G):</span>
+      <span class="text-lg font-mono font-bold text-neutral-900">
         {uiStore.state.peakAccel != null ? uiStore.state.peakAccel.toFixed(1) : '—'}
       </span>
     </div>
     <div class="flex items-center gap-2">
-      <span class="text-sm font-medium text-gray-600">Max Jerk (G/sec):</span>
-      <span class="text-lg font-mono font-bold text-gray-900">
+      <span class="text-sm font-medium text-neutral-600">Max Jerk (G/sec):</span>
+      <span class="text-lg font-mono font-bold text-neutral-900">
         {uiStore.state.peakJerk != null ? Math.round(uiStore.state.peakJerk) : '—'}
       </span>
     </div>
@@ -126,13 +126,13 @@ const SidebarHeader = () => (
   <div class="p-3">
     <div class="flex gap-2">
       <button
-        class="flex-1 px-3 py-2 text-sm font-medium transition-colors border border-neutral-900 bg-white text-gray-900 hover:bg-neutral-100"
+        class="flex-1 px-3 py-1 text-sm font-medium transition-colors border border-neutral-900 bg-white text-neutral-900 hover:bg-neutral-200"
         onClick={() => uiStore.setRangeRequest('firstHit')}
       >
         First Hit Zoom
       </button>
       <button
-        class="flex-1 px-3 py-2 text-sm font-medium transition-colors border border-neutral-900 bg-white text-gray-900 hover:bg-neutral-100"
+        class="flex-1 px-3 py-1 text-sm font-medium transition-colors border border-neutral-900 bg-white text-neutral-900 hover:bg-neutral-200"
         onClick={() => uiStore.setRangeRequest('full')}
       >
         Full View
@@ -204,7 +204,7 @@ const JerkSection = () => (
       onChange={(v) => uiStore.setJerkWindowMs(v)}
     />
     <div class="mt-2">
-      <label class="text-xs font-medium text-gray-700 block mb-1">Polynomial Order</label>
+      <label class="text-xs font-medium text-neutral-700 block mb-1">Polynomial Order</label>
       <div class="flex border border-neutral-900">
         <ToggleButton
           active={uiStore.state.jerkPolyOrder === 1}
@@ -234,7 +234,7 @@ const EnergySection = () => {
           class={`px-3 py-1.5 text-xs font-medium transition-colors border border-neutral-900 ${
             state.showVelocityOnChart
               ? 'bg-neutral-900 text-white'
-              : 'bg-white text-gray-900 hover:bg-neutral-100'
+              : 'bg-white text-neutral-900 hover:bg-neutral-200'
           }`}
           onClick={() => uiStore.setShowVelocityOnChart(!state.showVelocityOnChart)}
         >
@@ -248,7 +248,7 @@ const EnergySection = () => {
           <MetricCell label="v before" value={formatNumber(state.impactVelocityBeforeMps, 2)} />
           <MetricCell label="v after" value={formatNumber(state.impactVelocityAfterMps, 2)} />
           <MetricCell label="Δv" value={formatNumber(state.impactDeltaVelocityMps, 2)} />
-          <span class="text-gray-600 text-xs self-end">m/s</span>
+          <span class="text-neutral-600 text-xs self-end">m/s</span>
         </div>
 
         <hr class="border-neutral-300" />
@@ -258,7 +258,7 @@ const EnergySection = () => {
           <MetricCell label="E impact" value={formatNumber(state.impactEnergyJPerKg, 1)} />
           <MetricCell label="E rebound" value={formatNumber(state.reboundEnergyJPerKg, 1)} />
           <MetricCell label="E absorbed" value={formatNumber(state.absorbedEnergyJPerKg, 1)} />
-          <span class="text-gray-600 text-xs self-end">J/kg</span>
+          <span class="text-neutral-600 text-xs self-end">J/kg</span>
         </div>
 
         <hr class="border-neutral-300" />
@@ -288,7 +288,7 @@ const DRISection = () => (
     <div class="space-y-2 text-sm">
       <MetricRow label="DRI" value={formatNumber(uiStore.state.dri, 2)} large />
       {uiStore.state.driDeltaMaxMm != null && (
-        <div class="flex justify-between items-baseline text-gray-600">
+        <div class="flex justify-between items-baseline text-neutral-600">
           <span>Δmax</span>
           <span class="font-mono">{formatNumber(uiStore.state.driDeltaMaxMm, 2, ' mm')}</span>
         </div>

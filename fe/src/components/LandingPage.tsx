@@ -7,13 +7,13 @@ export const LandingPage = () => {
       <div class="max-w-xl w-full px-6">
         <header class="mb-8">
           <h1 class="text-2xl font-semibold mb-2">Paragliding Harness Drop Test Visualizer</h1>
-          <p class="text-sm text-gray-600 mb-4">
+          <p class="text-sm text-neutral-600 mb-4">
             Visualize and analyze real-world drop test data from harness back protectors.
           </p>
-          <p class="text-sm text-gray-600">
+          <p class="text-sm text-neutral-600">
             <strong>100% Private:</strong> All processing happens locally in your browser.
           </p>
-          <p class="text-xs text-gray-500 mt-2">
+          <p class="text-xs text-neutral-500 mt-2">
             <a
               href="https://github.com/hyperknot/droptest"
               target="_blank"
@@ -32,7 +32,7 @@ export const LandingPage = () => {
           }`}
         >
           <p class="text-lg font-medium mb-2">Drop a CSV drop test file here</p>
-          <p class="text-xs text-gray-500">
+          <p class="text-xs text-neutral-500">
             Expected format: CSV with columns: time0, datetime, accel
           </p>
         </div>
