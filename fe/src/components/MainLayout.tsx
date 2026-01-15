@@ -7,7 +7,6 @@ const COLOR_RAW = '#16a34a' // Green
 const COLOR_ACCEL_FILTERED = '#2563eb' // Blue
 const COLOR_JERK = '#a855f7' // Purple
 const COLOR_VELOCITY = '#059669' // Emerald
-const COLOR_HIC = '#f59e0b' // Amber
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Primitive UI Components
@@ -118,12 +117,6 @@ const PeakStats = () => (
       <span class="text-sm font-medium text-neutral-600">Max Jerk (G/sec):</span>
       <span class="text-lg font-mono font-bold text-neutral-900">
         {uiStore.state.peakJerk != null ? Math.round(uiStore.state.peakJerk) : '—'}
-      </span>
-    </div>
-    <div class="flex items-center gap-2">
-      <span class="text-sm font-medium text-neutral-600">Max HIC:</span>
-      <span class="text-lg font-mono font-bold text-amber-600">
-        {uiStore.state.peakHIC != null ? uiStore.state.peakHIC.toFixed(1) : '—'}
       </span>
     </div>
   </div>
@@ -306,13 +299,16 @@ const DRISection = () => (
 
 const HICSection = () => (
   <Section>
-    <SectionHeader title="HIC (Head Injury Criterion)" color={COLOR_HIC} />
+    <SectionHeader title="HIC (Head Injury Criterion)" />
     <AlgorithmInfo
       lines={[
-        'HIC = max[(t₂-t₁)·(∫a dt / (t₂-t₁))^2.5]',
+        `HIC = max[(t₂-t₁)·(∫a dt / (t₂-t₁))^${uiStore.state.hicExponent}]`,
         `window=${uiStore.state.hicWindowMs} ms`,
       ]}
     />
+    <div class="space-y-2 text-sm mb-3">
+      <MetricRow label="HIC" value={formatNumber(uiStore.state.peakHIC, 1)} large />
+    </div>
     <SliderControl
       label="Window Size"
       value={uiStore.state.hicWindowMs}
@@ -321,6 +317,15 @@ const HICSection = () => (
       step={1}
       unit="ms"
       onChange={(v) => uiStore.setHicWindowMs(v)}
+    />
+    <SliderControl
+      label="Exponent"
+      value={uiStore.state.hicExponent}
+      min={1.0}
+      max={3.5}
+      step={0.1}
+      unit=""
+      onChange={(v) => uiStore.setHicExponent(v)}
     />
   </Section>
 )

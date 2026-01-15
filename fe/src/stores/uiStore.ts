@@ -25,6 +25,7 @@ interface UIState {
   jerkWindowMs: number // ms
   jerkPolyOrder: 1 | 3 // Savitzky-Golay polynomial order
   hicWindowMs: number // ms - HIC calculation window
+  hicExponent: number // HIC exponent (default 2.2, range 1.0-3.5)
 
   // Visible range (for UI display - may include padding)
   visibleTimeRange: { min: number; max: number } | null
@@ -72,6 +73,7 @@ function processRawSamples(
   jerkWindowMs: number,
   jerkPolyOrder: 1 | 3,
   hicWindowMs: number,
+  hicExponent: number,
 ): Array<ProcessedSample> {
   if (rawSamples.length === 0) return []
 
@@ -89,7 +91,7 @@ function processRawSamples(
   const jerkAll = sgFilter(accelFilteredAll, jerkWindowMs, jerkPolyOrder, sampleRateHz, 1)
 
   // 3) Compute HIC from filtered acceleration
-  const hicAll = calculateHIC(accelFilteredAll, hicWindowMs, sampleRateHz)
+  const hicAll = calculateHIC(accelFilteredAll, hicWindowMs, sampleRateHz, hicExponent)
 
   const n = rawSamples.length
   let start = 0
@@ -150,6 +152,7 @@ class UIStore {
       jerkWindowMs: 17,
       jerkPolyOrder: 3,
       hicWindowMs: 15,
+      hicExponent: 2.2,
 
       visibleTimeRange: null,
       peakAccel: null,
@@ -249,6 +252,12 @@ class UIStore {
     this.recomputeProcessedSamples()
   }
 
+  setHicExponent(val: number) {
+    const clamped = Math.max(1.0, Math.min(3.5, val))
+    this.setState('hicExponent', clamped)
+    this.recomputeProcessedSamples()
+  }
+
   async loadFile(file: File) {
     this.setState('error', null)
     this.setState('filename', null)
@@ -318,7 +327,8 @@ class UIStore {
   }
 
   private recomputeProcessedSamples() {
-    const { rawSamples, sampleRateHz, accelCfc, jerkWindowMs, jerkPolyOrder, hicWindowMs } = this.state
+    const { rawSamples, sampleRateHz, accelCfc, jerkWindowMs, jerkPolyOrder, hicWindowMs, hicExponent } =
+      this.state
 
     if (rawSamples.length === 0) {
       this.setState('processedSamples', [])
@@ -354,6 +364,7 @@ class UIStore {
         jerkWindowMs,
         jerkPolyOrder,
         hicWindowMs,
+        hicExponent,
       )
       this.setState('processedSamples', processed)
 
