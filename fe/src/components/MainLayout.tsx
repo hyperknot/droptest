@@ -1,4 +1,4 @@
-import { For, type JSX } from 'solid-js'
+import { For, type JSX, type ParentProps } from 'solid-js'
 import { uiStore } from '../stores/uiStore'
 import { AccelerationProfileChart } from './AccelerationProfileChart'
 
@@ -8,7 +8,12 @@ const COLOR_ACCEL_FILTERED = '#2563eb' // Blue
 const COLOR_JERK = '#a855f7' // Purple
 const COLOR_VELOCITY = '#059669' // Emerald
 
-// Local sub-components for DRY code
+// ─────────────────────────────────────────────────────────────────────────────
+// Primitive UI Components
+// ─────────────────────────────────────────────────────────────────────────────
+
+const Section = (props: ParentProps) => <section class="px-4 py-3">{props.children}</section>
+
 const SectionHeader = (props: { title: string; color?: string; inline?: boolean }) => (
   <h2 class={`text-lg font-semibold flex items-center gap-2 ${props.inline ? '' : 'mb-2'}`}>
     {props.color && (
@@ -16,6 +21,14 @@ const SectionHeader = (props: { title: string; color?: string; inline?: boolean 
     )}
     {props.title}
   </h2>
+)
+
+const AlgorithmInfo = (props: { lines: Array<string | JSX.Element> }) => (
+  <div class="text-[11px] text-gray-600 mb-2">
+    <div class="font-mono leading-snug space-y-0.5">
+      <For each={props.lines}>{(line) => <div class="break-all">{line}</div>}</For>
+    </div>
+  </div>
 )
 
 const SliderControl = (props: {
@@ -46,295 +59,266 @@ const SliderControl = (props: {
   </div>
 )
 
-// Compact algorithm/parameter summary
-const AlgorithmInfo = (props: { lines: Array<string | JSX.Element> }) => (
-  <div class="text-[11px] text-gray-600 mb-2">
-    <div class="font-mono leading-snug space-y-0.5">
-      <For each={props.lines}>{(line) => <div class="break-all">{line}</div>}</For>
+const ToggleButton = (props: {
+  active: boolean
+  onClick: () => void
+  children: JSX.Element
+  borderRight?: boolean
+}) => (
+  <button
+    class={`flex-1 px-2 py-1.5 text-xs font-medium transition-colors ${
+      props.borderRight ? 'border-r border-black' : ''
+    } ${props.active ? 'bg-neutral-900 text-white' : 'bg-white text-gray-900 hover:bg-gray-100'}`}
+    onClick={props.onClick}
+  >
+    {props.children}
+  </button>
+)
+
+const MetricRow = (props: { label: string; hint?: string; value: string; large?: boolean }) => (
+  <div class="flex justify-between items-baseline">
+    <div>
+      <span class="text-gray-700">{props.label}</span>
+      {props.hint && <span class="text-xs text-gray-600 ml-1">{props.hint}</span>}
+    </div>
+    <span
+      class={`font-mono font-${props.large ? 'bold' : 'semibold'} ${props.large ? 'text-xl text-gray-900' : ''}`}
+    >
+      {props.value}
+    </span>
+  </div>
+)
+
+const MetricCell = (props: { label: string; value: string }) => (
+  <div class="text-center">
+    <div class="text-gray-600 text-xs">{props.label}</div>
+    <div class="font-mono font-semibold">{props.value}</div>
+  </div>
+)
+
+const formatNumber = (v: number | null, digits: number, unit = '') => {
+  if (v == null) return '—'
+  return `${v.toFixed(digits)}${unit}`
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section Components
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PeakStats = () => (
+  <div class="flex justify-center gap-8 px-4 py-2.5 bg-white border-b border-black">
+    <div class="flex items-center gap-2">
+      <span class="text-sm font-medium text-gray-600">Max Acceleration (G):</span>
+      <span class="text-lg font-mono font-bold text-gray-900">
+        {uiStore.state.peakAccel != null ? uiStore.state.peakAccel.toFixed(1) : '—'}
+      </span>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="text-sm font-medium text-gray-600">Max Jerk (G/sec):</span>
+      <span class="text-lg font-mono font-bold text-gray-900">
+        {uiStore.state.peakJerk != null ? Math.round(uiStore.state.peakJerk) : '—'}
+      </span>
     </div>
   </div>
 )
 
-// Peak values display for visible range
-const PeakStats = () => {
-  const peakAccel = () => uiStore.state.peakAccel
-  const peakJerk = () => uiStore.state.peakJerk
+const SidebarHeader = () => (
+  <div class="p-3">
+    <div class="flex gap-2">
+      <button
+        class="flex-1 px-3 py-2 text-sm font-medium transition-colors border border-neutral-900 bg-white text-gray-900 hover:bg-neutral-100"
+        onClick={() => uiStore.setRangeRequest('firstHit')}
+      >
+        First Hit Zoom
+      </button>
+      <button
+        class="flex-1 px-3 py-2 text-sm font-medium transition-colors border border-neutral-900 bg-white text-gray-900 hover:bg-neutral-100"
+        onClick={() => uiStore.setRangeRequest('full')}
+      >
+        Full View
+      </button>
+    </div>
+  </div>
+)
 
-  return (
-    <div class="flex justify-center gap-8 px-4 py-2.5 bg-white border-b border-black">
-      <div class="flex items-center gap-2">
-        <span class="text-sm font-medium text-gray-600">Max Acceleration (G):</span>
-        <span class="text-lg font-mono font-bold text-gray-900">
-          {peakAccel() != null ? peakAccel()!.toFixed(1) : '—'}
-        </span>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="text-sm font-medium text-gray-600">Max Jerk (G/sec):</span>
-        <span class="text-lg font-mono font-bold text-gray-900">
-          {peakJerk() != null ? Math.round(peakJerk()!) : '—'}
-        </span>
+const RawAccelSection = () => (
+  <Section>
+    <SectionHeader title="File" />
+    <AlgorithmInfo
+      lines={[
+        uiStore.state.filename,
+        `${uiStore.state.processedSamples.length.toLocaleString()} pts @ ${uiStore.state.sampleRateHz.toFixed(1)} Hz`,
+      ]}
+    />
+  </Section>
+)
+
+const FilteredAccelSection = () => (
+  <Section>
+    <SectionHeader title="Filtered Acceleration" color={COLOR_ACCEL_FILTERED} />
+    <AlgorithmInfo
+      lines={[
+        <>
+          CFC low-pass per{' '}
+          <a
+            href="https://law.resource.org/pub/us/cfr/ibr/005/sae.j211-1.1995.pdf"
+            target="_blank"
+            rel="noopener"
+            class="text-blue-600 underline"
+          >
+            SAE J211/1
+          </a>
+        </>,
+        `CFC ${uiStore.state.accelCfc} → Fc=${Math.round(uiStore.state.accelCfc * 2.0775)} Hz`,
+      ]}
+    />
+    <SliderControl
+      label="CFC Class"
+      value={uiStore.state.accelCfc}
+      min={5}
+      max={225}
+      step={5}
+      unit=""
+      onChange={(v) => uiStore.setAccelCfc(v)}
+    />
+  </Section>
+)
+
+const JerkSection = () => (
+  <Section>
+    <SectionHeader title="Jerk" color={COLOR_JERK} />
+    <AlgorithmInfo
+      lines={[
+        'Savitzky–Golay derivative',
+        `polyOrder=${uiStore.state.jerkPolyOrder}, deriv=1  →  units: G/s`,
+        `window=${uiStore.state.jerkWindowMs} ms`,
+      ]}
+    />
+    <SliderControl
+      label="Window Size"
+      value={uiStore.state.jerkWindowMs}
+      min={5}
+      max={51}
+      step={2}
+      unit="ms"
+      onChange={(v) => uiStore.setJerkWindowMs(v)}
+    />
+    <div class="mt-2">
+      <label class="text-xs font-medium text-gray-700 block mb-1">Polynomial Order</label>
+      <div class="flex border border-neutral-900">
+        <ToggleButton
+          active={uiStore.state.jerkPolyOrder === 1}
+          onClick={() => uiStore.setJerkPolyOrder(1)}
+          borderRight
+        >
+          <>Linear (1)</>
+        </ToggleButton>
+        <ToggleButton
+          active={uiStore.state.jerkPolyOrder === 3}
+          onClick={() => uiStore.setJerkPolyOrder(3)}
+        >
+          <>Cubic (3)</>
+        </ToggleButton>
       </div>
     </div>
+  </Section>
+)
+
+const EnergySection = () => {
+  const state = uiStore.state
+  return (
+    <Section>
+      <div class="flex items-center justify-between mb-3">
+        <SectionHeader title="Impact Energy" color={COLOR_VELOCITY} inline />
+        <button
+          class={`px-3 py-1.5 text-xs font-medium transition-colors border border-neutral-900 ${
+            state.showVelocityOnChart
+              ? 'bg-neutral-900 text-white'
+              : 'bg-white text-gray-900 hover:bg-neutral-100'
+          }`}
+          onClick={() => uiStore.setShowVelocityOnChart(!state.showVelocityOnChart)}
+        >
+          {state.showVelocityOnChart ? 'Hide v(t)' : 'Show v(t)'}
+        </button>
+      </div>
+
+      <div class="space-y-3 text-sm">
+        {/* Velocity: v before | v after | Δv */}
+        <div class="flex justify-between items-baseline">
+          <MetricCell label="v before" value={formatNumber(state.impactVelocityBeforeMps, 2)} />
+          <MetricCell label="v after" value={formatNumber(state.impactVelocityAfterMps, 2)} />
+          <MetricCell label="Δv" value={formatNumber(state.impactDeltaVelocityMps, 2)} />
+          <span class="text-gray-600 text-xs self-end">m/s</span>
+        </div>
+
+        <hr class="border-neutral-300" />
+
+        {/* Energy: impact | rebound | absorbed */}
+        <div class="flex justify-between items-baseline">
+          <MetricCell label="E impact" value={formatNumber(state.impactEnergyJPerKg, 1)} />
+          <MetricCell label="E rebound" value={formatNumber(state.reboundEnergyJPerKg, 1)} />
+          <MetricCell label="E absorbed" value={formatNumber(state.absorbedEnergyJPerKg, 1)} />
+          <span class="text-gray-600 text-xs self-end">J/kg</span>
+        </div>
+
+        <hr class="border-neutral-300" />
+
+        <MetricRow label="COR" hint="v_out / v_in" value={formatNumber(state.cor, 3)} />
+        <MetricRow
+          label="Energy Return"
+          hint="COR²"
+          value={formatNumber(state.energyReturnPercent, 1, '%')}
+        />
+        <MetricRow
+          label="Bounce Height"
+          hint="v²/(2g)"
+          value={formatNumber(state.bounceHeightCm, 1, ' cm')}
+        />
+      </div>
+    </Section>
   )
 }
 
-export const MainLayout = () => {
-  const state = () => uiStore.state
-  const dri = () => uiStore.state.dri
-  const driDeltaMaxMm = () => uiStore.state.driDeltaMaxMm
-
-  const formatNumber = (v: number | null, digits: number, unit = '') => {
-    if (v == null) return '—'
-    return `${v.toFixed(digits)}${unit}`
-  }
-
-  return (
-    <div class="h-screen flex overflow-hidden bg-white">
-      {/* Main content area */}
-      <div class="flex-1 flex flex-col min-w-0 border-r border-black">
-        <PeakStats />
-        <div class="flex-1 min-h-0 relative">
-          <AccelerationProfileChart />
+const DRISection = () => (
+  <Section>
+    <SectionHeader title="DRI (Dynamic Response Index)" />
+    <AlgorithmInfo
+      lines={['model: x" + 2ζωx\' + ω²x = -a(t)', 'DRI = ω²·max(|x|)/g', 'ω=52.9 rad/s, ζ=0.224']}
+    />
+    <div class="space-y-2 text-sm">
+      <MetricRow label="DRI" value={formatNumber(uiStore.state.dri, 2)} large />
+      {uiStore.state.driDeltaMaxMm != null && (
+        <div class="flex justify-between items-baseline text-gray-600">
+          <span>Δmax</span>
+          <span class="font-mono">{formatNumber(uiStore.state.driDeltaMaxMm, 2, ' mm')}</span>
         </div>
-      </div>
-
-      {/* Sidebar */}
-      <aside class="w-80 h-full overflow-y-auto flex-shrink-0">
-        {/* Header with buttons */}
-        <div class="p-3 border-b border-black">
-          <div class="flex gap-2">
-            <button
-              class="flex-1 px-3 py-2 text-sm font-medium transition-colors border border-neutral-900 bg-white text-gray-900 hover:bg-neutral-100"
-              onClick={() => uiStore.setRangeRequest('firstHit')}
-            >
-              First Hit Zoom
-            </button>
-            <button
-              class="flex-1 px-3 py-2 text-sm font-medium transition-colors border border-neutral-900 bg-white text-gray-900 hover:bg-neutral-100"
-              onClick={() => uiStore.setRangeRequest('full')}
-            >
-              Full View
-            </button>
-          </div>
-        </div>
-
-        {/* Raw Accel Section */}
-        <section class="px-4 py-3 border-b border-black">
-          <SectionHeader title="Raw Acceleration" color={COLOR_RAW} />
-          <AlgorithmInfo
-            lines={[
-              `source: ${state().filename}`,
-              `${state().processedSamples.length.toLocaleString()} pts @ ${state().sampleRateHz.toFixed(1)} Hz`,
-            ]}
-          />
-        </section>
-
-        {/* Filtered Accel Section */}
-        <section class="px-4 py-3 border-b border-black">
-          <SectionHeader title="Filtered Acceleration" color={COLOR_ACCEL_FILTERED} />
-          <AlgorithmInfo
-            lines={[
-              <>
-                CFC low-pass per{' '}
-                <a
-                  href="https://law.resource.org/pub/us/cfr/ibr/005/sae.j211-1.1995.pdf"
-                  target="_blank"
-                  rel="noopener"
-                  class="text-blue-600 underline"
-                >
-                  SAE J211/1
-                </a>
-              </>,
-              `CFC ${state().accelCfc} → Fc=${Math.round(state().accelCfc * 2.0775)} Hz`,
-            ]}
-          />
-
-          <SliderControl
-            label="CFC Class"
-            value={state().accelCfc}
-            min={5}
-            max={225}
-            step={5}
-            unit=""
-            onChange={(v) => uiStore.setAccelCfc(v)}
-          />
-        </section>
-
-        {/* Jerk Section */}
-        <section class="px-4 py-3 border-b border-black">
-          <SectionHeader title="Jerk" color={COLOR_JERK} />
-          <AlgorithmInfo
-            lines={[
-              'Savitzky–Golay derivative',
-              `polyOrder=${state().jerkPolyOrder}, deriv=1  →  units: G/s`,
-              `window=${state().jerkWindowMs} ms`,
-            ]}
-          />
-
-          <SliderControl
-            label="Window Size"
-            value={state().jerkWindowMs}
-            min={5}
-            max={51}
-            step={2}
-            unit="ms"
-            onChange={(v) => uiStore.setJerkWindowMs(v)}
-          />
-
-          <div class="mt-2">
-            <label class="text-xs font-medium text-gray-700 block mb-1">Polynomial Order</label>
-            <div class="flex border border-neutral-900">
-              <button
-                class={`flex-1 px-2 py-1.5 text-xs font-medium transition-colors border-r border-black ${
-                  state().jerkPolyOrder === 1
-                    ? 'bg-neutral-900 text-white'
-                    : 'bg-white text-gray-900 hover:bg-gray-100'
-                }`}
-                onClick={() => uiStore.setJerkPolyOrder(1)}
-              >
-                Linear (1)
-              </button>
-              <button
-                class={`flex-1 px-2 py-1.5 text-xs font-medium transition-colors ${
-                  state().jerkPolyOrder === 3
-                    ? 'bg-neutral-900 text-white'
-                    : 'bg-white text-gray-900 hover:bg-gray-100'
-                }`}
-                onClick={() => uiStore.setJerkPolyOrder(3)}
-              >
-                Cubic (3)
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* Energy Section */}
-        <section class="px-4 py-3 border-b border-black">
-          <div class="flex items-center justify-between mb-3">
-            <SectionHeader title="Impact Energy" color={COLOR_VELOCITY} inline />
-            <button
-              class={`px-3 py-1.5 text-xs font-medium transition-colors border border-neutral-900 ${
-                state().showVelocityOnChart
-                  ? 'bg-neutral-900 text-white'
-                  : 'bg-white text-gray-900 hover:bg-neutral-100'
-              }`}
-              onClick={() => uiStore.setShowVelocityOnChart(!state().showVelocityOnChart)}
-            >
-              {state().showVelocityOnChart ? 'Hide v(t)' : 'Show v(t)'}
-            </button>
-          </div>
-
-          {/* All metrics in clean rows */}
-          <div class="space-y-3 text-sm">
-            {/* Velocity row: v before | v after | Δv */}
-            <div class="flex justify-between items-baseline">
-              <div class="text-center">
-                <div class="text-gray-600 text-xs">v before</div>
-                <div class="font-mono font-semibold">
-                  {formatNumber(state().impactVelocityBeforeMps, 2)}
-                </div>
-              </div>
-              <div class="text-center">
-                <div class="text-gray-600 text-xs">v after</div>
-                <div class="font-mono font-semibold">
-                  {formatNumber(state().impactVelocityAfterMps, 2)}
-                </div>
-              </div>
-              <div class="text-center">
-                <div class="text-gray-600 text-xs">Δv</div>
-                <div class="font-mono font-semibold">
-                  {formatNumber(state().impactDeltaVelocityMps, 2)}
-                </div>
-              </div>
-              <span class="text-gray-600 text-xs self-end">m/s</span>
-            </div>
-
-            <hr class="border-neutral-300" />
-
-            {/* Energy row: impact | rebound | absorbed */}
-            <div class="flex justify-between items-baseline">
-              <div class="text-center">
-                <div class="text-gray-600 text-xs">E impact</div>
-                <div class="font-mono font-semibold">
-                  {formatNumber(state().impactEnergyJPerKg, 1)}
-                </div>
-              </div>
-              <div class="text-center">
-                <div class="text-gray-600 text-xs">E rebound</div>
-                <div class="font-mono font-semibold">
-                  {formatNumber(state().reboundEnergyJPerKg, 1)}
-                </div>
-              </div>
-              <div class="text-center">
-                <div class="text-gray-600 text-xs">E absorbed</div>
-                <div class="font-mono font-semibold">
-                  {formatNumber(state().absorbedEnergyJPerKg, 1)}
-                </div>
-              </div>
-              <span class="text-gray-600 text-xs self-end">J/kg</span>
-            </div>
-
-            <hr class="border-neutral-300" />
-
-            {/* COR */}
-            <div class="flex justify-between items-baseline">
-              <div>
-                <span class="text-gray-700">COR</span>
-                <span class="text-xs text-gray-600 ml-1">v_out / v_in</span>
-              </div>
-              <span class="font-mono font-semibold">{formatNumber(state().cor, 3)}</span>
-            </div>
-
-            {/* Energy Return */}
-            <div class="flex justify-between items-baseline">
-              <div>
-                <span class="text-gray-700">Energy Return</span>
-                <span class="text-xs text-gray-600 ml-1">COR²</span>
-              </div>
-              <span class="font-mono font-semibold">
-                {formatNumber(state().energyReturnPercent, 1, '%')}
-              </span>
-            </div>
-
-            {/* Bounce Height */}
-            <div class="flex justify-between items-baseline">
-              <div>
-                <span class="text-gray-700">Bounce Height</span>
-                <span class="text-xs text-gray-600 ml-1">v²/(2g)</span>
-              </div>
-              <span class="font-mono font-semibold">
-                {formatNumber(state().bounceHeightCm, 1, ' cm')}
-              </span>
-            </div>
-          </div>
-        </section>
-
-        {/* DRI Section */}
-        <section class="px-4 py-3">
-          <SectionHeader title="DRI (Dynamic Response Index)" />
-          <AlgorithmInfo
-            lines={[
-              'model: x" + 2ζωx\' + ω²x = -a(t)',
-              'DRI = ω²·max(|x|)/g',
-              'ω=52.9 rad/s, ζ=0.224',
-            ]}
-          />
-          <div class="space-y-2 text-sm">
-            <div class="flex justify-between items-baseline">
-              <span class="text-gray-700">DRI</span>
-              <span class="text-xl font-mono font-bold text-gray-900">
-                {formatNumber(dri(), 2)}
-              </span>
-            </div>
-            {driDeltaMaxMm() != null && (
-              <div class="flex justify-between items-baseline text-gray-600">
-                <span>Δmax</span>
-                <span class="font-mono">{formatNumber(driDeltaMaxMm(), 2, ' mm')}</span>
-              </div>
-            )}
-          </div>
-        </section>
-      </aside>
+      )}
     </div>
-  )
-}
+  </Section>
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Layout
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const MainLayout = () => (
+  <div class="h-screen flex overflow-hidden bg-white">
+    {/* Main content area */}
+    <div class="flex-1 flex flex-col min-w-0 border-r border-black">
+      <PeakStats />
+      <div class="flex-1 min-h-0 relative">
+        <AccelerationProfileChart />
+      </div>
+    </div>
+
+    {/* Sidebar */}
+    <aside class="w-80 h-full overflow-y-auto flex-shrink-0 divide-y divide-black">
+      <SidebarHeader />
+      <RawAccelSection />
+      <EnergySection />
+      <DRISection />
+      <FilteredAccelSection />
+      <JerkSection />
+    </aside>
+  </div>
+)
