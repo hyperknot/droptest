@@ -1,7 +1,7 @@
 import { createStore, type SetStoreFunction } from 'solid-js/store'
 import { parseRawCSV } from '../lib/csv-parser'
 import { cfcFilter } from '../lib/filter/cfc'
-import { calculateHIC } from '../lib/filter/hic'
+import { calculateHIC } from '../lib/metrics/hic'
 import { detectOriginTime, findFirstHitRange } from '../lib/filter/range'
 import { resampleToUniform } from '../lib/filter/resample'
 import { sgFilter } from '../lib/filter/sg'
