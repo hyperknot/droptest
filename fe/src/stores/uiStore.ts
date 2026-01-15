@@ -1,12 +1,12 @@
 import { createStore, type SetStoreFunction } from 'solid-js/store'
 import { parseRawCSV } from '../lib/csv-parser'
 import { cfcFilter } from '../lib/filter/cfc'
-import { calculateHIC } from '../lib/metrics/hic'
 import { detectOriginTime, findFirstHitRange } from '../lib/filter/range'
 import { resampleToUniform } from '../lib/filter/resample'
 import { sgFilter } from '../lib/filter/sg'
 import { computeDRIForWindow } from '../lib/metrics/dri'
 import { computeImpactEnergyForWindow, computeVelocityTimeline } from '../lib/metrics/energy'
+import { calculateHIC } from '../lib/metrics/hic'
 import type { ProcessedSample, RawSample } from '../types'
 
 interface UIState {
@@ -90,8 +90,13 @@ function processRawSamples(
   // 2) Compute jerk from filtered acceleration
   const jerkAll = sgFilter(accelFilteredAll, jerkWindowMs, jerkPolyOrder, sampleRateHz, 1)
 
-  // 3) Compute HIC from filtered acceleration
-  const hicAll = calculateHIC(accelFilteredAll, hicWindowMs, sampleRateHz, hicExponent)
+  // 3) Compute HIC (scalar) from filtered acceleration
+  // Note: calculateHIC internally uses acceleration magnitude, so signed input is OK.
+  const hicScalar = calculateHIC(accelFilteredAll, hicWindowMs, sampleRateHz, hicExponent)
+
+  // Store HIC as a per-sample constant so ProcessedSample has a hic field at every point.
+  // (Your HIC function returns a single maximum value for the entire signal.)
+  const hicAll = new Array<number>(rawSamples.length).fill(hicScalar)
 
   const n = rawSamples.length
   let start = 0
@@ -152,7 +157,7 @@ class UIStore {
       jerkWindowMs: 17,
       jerkPolyOrder: 3,
       hicWindowMs: 15,
-      hicExponent: 2.2,
+      hicExponent: 2,
 
       visibleTimeRange: null,
       peakAccel: null,
@@ -327,8 +332,15 @@ class UIStore {
   }
 
   private recomputeProcessedSamples() {
-    const { rawSamples, sampleRateHz, accelCfc, jerkWindowMs, jerkPolyOrder, hicWindowMs, hicExponent } =
-      this.state
+    const {
+      rawSamples,
+      sampleRateHz,
+      accelCfc,
+      jerkWindowMs,
+      jerkPolyOrder,
+      hicWindowMs,
+      hicExponent,
+    } = this.state
 
     if (rawSamples.length === 0) {
       this.setState('processedSamples', [])

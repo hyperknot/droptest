@@ -54,11 +54,15 @@ export function calculateHIC(
   const prefix = new Array<number>(n + 1)
   prefix[0] = 0
   for (let i = 0; i < n; i++) {
-    const a = accelValues[i]
-    if (!Number.isFinite(a)) {
-      throw new Error(`accelValues contains non-finite value at index ${i}: ${a}`)
+    const aSigned = accelValues[i]
+    if (!Number.isFinite(aSigned)) {
+      throw new Error(`accelValues contains non-finite value at index ${i}: ${aSigned}`)
     }
-    prefix[i + 1] = prefix[i] + a
+
+    // HIC uses acceleration magnitude (non-negative).
+    // If caller provides a signed 1-axis signal, convert to magnitude here.
+    const aMag = Math.abs(aSigned)
+    prefix[i + 1] = prefix[i] + aMag
   }
 
   let globalMaxHIC = 0
