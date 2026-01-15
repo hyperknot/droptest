@@ -1,6 +1,7 @@
 import { createStore, type SetStoreFunction } from 'solid-js/store'
 import { parseRawCSV } from '../lib/csv-parser'
 import { cfcFilter } from '../lib/filter/cfc'
+import { calculateHIC } from '../lib/filter/hic'
 import { detectOriginTime, findFirstHitRange } from '../lib/filter/range'
 import { resampleToUniform } from '../lib/filter/resample'
 import { sgFilter } from '../lib/filter/sg'
@@ -23,6 +24,7 @@ interface UIState {
   accelCfc: number // CFC class value
   jerkWindowMs: number // ms
   jerkPolyOrder: 1 | 3 // Savitzky-Golay polynomial order
+  hicWindowMs: number // ms - HIC calculation window
 
   // Visible range (for UI display - may include padding)
   visibleTimeRange: { min: number; max: number } | null
@@ -30,6 +32,7 @@ interface UIState {
   // Computed peaks in visible range
   peakAccel: number | null
   peakJerk: number | null
+  peakHIC: number | null
 
   // DRI over the calculation window (hitRange or full timeline)
   dri: number | null
@@ -68,6 +71,7 @@ function processRawSamples(
   accelCfc: number,
   jerkWindowMs: number,
   jerkPolyOrder: 1 | 3,
+  hicWindowMs: number,
 ): Array<ProcessedSample> {
   if (rawSamples.length === 0) return []
 
@@ -84,12 +88,17 @@ function processRawSamples(
   // 2) Compute jerk from filtered acceleration
   const jerkAll = sgFilter(accelFilteredAll, jerkWindowMs, jerkPolyOrder, sampleRateHz, 1)
 
+  // 3) Compute HIC from filtered acceleration
+  const hicAll = calculateHIC(accelFilteredAll, hicWindowMs, sampleRateHz)
+
   const n = rawSamples.length
   let start = 0
   let end = n - 1
 
   const isInvalid = (i: number) =>
-    !Number.isFinite(accelFilteredAll[i]) || !Number.isFinite(jerkAll[i])
+    !Number.isFinite(accelFilteredAll[i]) ||
+    !Number.isFinite(jerkAll[i]) ||
+    !Number.isFinite(hicAll[i])
 
   // Trim invalid points from the left
   while (start <= end && isInvalid(start)) start++
@@ -110,13 +119,15 @@ function processRawSamples(
   for (let i = start; i <= end; i++) {
     const af = accelFilteredAll[i]
     const j = jerkAll[i]
-    if (!Number.isFinite(af) || !Number.isFinite(j)) continue
+    const h = hicAll[i]
+    if (!Number.isFinite(af) || !Number.isFinite(j) || !Number.isFinite(h)) continue
 
     out.push({
       timeMs: rawSamples[i].timeMs - t0, // rebase time to trimmed start
       accelRaw: rawSamples[i].accelRaw,
       accelFiltered: af,
       jerkSG: j,
+      hic: h,
     })
   }
 
@@ -138,10 +149,12 @@ class UIStore {
       accelCfc: 75,
       jerkWindowMs: 17,
       jerkPolyOrder: 3,
+      hicWindowMs: 15,
 
       visibleTimeRange: null,
       peakAccel: null,
       peakJerk: null,
+      peakHIC: null,
 
       dri: null,
       driDeltaMaxMm: null,
@@ -230,6 +243,12 @@ class UIStore {
     this.recomputeProcessedSamples()
   }
 
+  setHicWindowMs(val: number) {
+    const clamped = Math.max(5, Math.min(50, val))
+    this.setState('hicWindowMs', clamped)
+    this.recomputeProcessedSamples()
+  }
+
   async loadFile(file: File) {
     this.setState('error', null)
     this.setState('filename', null)
@@ -238,6 +257,7 @@ class UIStore {
     this.setState('visibleTimeRange', null)
     this.setState('peakAccel', null)
     this.setState('peakJerk', null)
+    this.setState('peakHIC', null)
     this.setState('dri', null)
     this.setState('driDeltaMaxMm', null)
 
@@ -298,13 +318,14 @@ class UIStore {
   }
 
   private recomputeProcessedSamples() {
-    const { rawSamples, sampleRateHz, accelCfc, jerkWindowMs, jerkPolyOrder } = this.state
+    const { rawSamples, sampleRateHz, accelCfc, jerkWindowMs, jerkPolyOrder, hicWindowMs } = this.state
 
     if (rawSamples.length === 0) {
       this.setState('processedSamples', [])
       this.setState('visibleTimeRange', null)
       this.setState('peakAccel', null)
       this.setState('peakJerk', null)
+      this.setState('peakHIC', null)
       this.setState('dri', null)
       this.setState('driDeltaMaxMm', null)
 
@@ -332,6 +353,7 @@ class UIStore {
         accelCfc,
         jerkWindowMs,
         jerkPolyOrder,
+        hicWindowMs,
       )
       this.setState('processedSamples', processed)
 
@@ -360,6 +382,7 @@ class UIStore {
       this.setState('visibleTimeRange', null)
       this.setState('peakAccel', null)
       this.setState('peakJerk', null)
+      this.setState('peakHIC', null)
       this.setState('dri', null)
       this.setState('driDeltaMaxMm', null)
 
@@ -386,6 +409,7 @@ class UIStore {
     if (processedSamples.length === 0 || !visibleTimeRange) {
       this.setState('peakAccel', null)
       this.setState('peakJerk', null)
+      this.setState('peakHIC', null)
       this.setState('dri', null)
       this.setState('driDeltaMaxMm', null)
 
@@ -406,6 +430,7 @@ class UIStore {
     // Peaks are computed from visible range (for display)
     let peakAccel = Number.NEGATIVE_INFINITY
     let peakJerk = 0
+    let peakHIC = Number.NEGATIVE_INFINITY
 
     for (const s of processedSamples) {
       if (s.timeMs >= visibleTimeRange.min && s.timeMs <= visibleTimeRange.max) {
@@ -414,6 +439,9 @@ class UIStore {
         }
         if (s.jerkSG > peakJerk) {
           peakJerk = s.jerkSG
+        }
+        if (s.hic > peakHIC) {
+          peakHIC = s.hic
         }
       }
     }
@@ -448,6 +476,7 @@ class UIStore {
     if (peakAccel === Number.NEGATIVE_INFINITY) {
       this.setState('peakAccel', null)
       this.setState('peakJerk', null)
+      this.setState('peakHIC', null)
       this.setState('dri', null)
       this.setState('driDeltaMaxMm', null)
 
@@ -465,6 +494,7 @@ class UIStore {
     } else {
       this.setState('peakAccel', peakAccel)
       this.setState('peakJerk', peakJerk)
+      this.setState('peakHIC', peakHIC)
       this.setState('dri', driRes?.dri ?? null)
       this.setState('driDeltaMaxMm', driRes?.deltaMaxMm ?? null)
 

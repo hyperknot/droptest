@@ -21,6 +21,7 @@ const COLOR_JERK_WARNING = '#ef4444' // Red - for |jerk| > 2000
 const COLOR_RAW = '#16a34a' // Green
 const COLOR_RANGE_LINE = '#475569' // Slate-600 for DRI range markers
 const COLOR_VELOCITY = '#059669' // Emerald-600
+const COLOR_HIC = '#f59e0b' // Amber
 
 export const AccelerationProfileChart = () => {
   let divRef: HTMLDivElement | undefined
@@ -55,7 +56,7 @@ export const AccelerationProfileChart = () => {
 
     chartInst.setOption({
       animation: false,
-      grid: { left: 90, right: 70, top: 30, bottom: 40 },
+      grid: { left: 90, right: 115, top: 30, bottom: 40 },
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'cross' },
@@ -100,7 +101,7 @@ export const AccelerationProfileChart = () => {
           },
           splitLine: { show: false },
         },
-        // Left axis (offset): Velocity (amber)
+        // Left axis (offset): Velocity (emerald)
         {
           type: 'value',
           name: 'Velocity (m/s)',
@@ -124,6 +125,20 @@ export const AccelerationProfileChart = () => {
           axisLabel: {
             color: COLOR_ACCEL_FILTERED,
             formatter: (v: number) => v.toFixed(1),
+          },
+          splitLine: { show: false },
+        },
+        // Right axis (offset): HIC (amber)
+        {
+          type: 'value',
+          name: 'HIC',
+          position: 'right',
+          offset: 45,
+          axisLine: { show: true, lineStyle: { color: COLOR_HIC } },
+          nameTextStyle: { color: COLOR_HIC },
+          axisLabel: {
+            color: COLOR_HIC,
+            formatter: (v: number) => v.toFixed(0),
           },
           splitLine: { show: false },
         },
@@ -153,6 +168,8 @@ export const AccelerationProfileChart = () => {
     let accelFilteredMax = Number.NEGATIVE_INFINITY
     let jerkMin = Number.POSITIVE_INFINITY
     let jerkMax = Number.NEGATIVE_INFINITY
+    let hicMin = Number.POSITIVE_INFINITY
+    let hicMax = Number.NEGATIVE_INFINITY
 
     let velMin = Number.POSITIVE_INFINITY
     let velMax = Number.NEGATIVE_INFINITY
@@ -164,6 +181,7 @@ export const AccelerationProfileChart = () => {
       const raw = s.accelRaw
       const filtered = s.accelFiltered
       const jerk = s.jerkSG
+      const hic = s.hic
 
       if (raw < accelRawMin) accelRawMin = raw
       if (raw > accelRawMax) accelRawMax = raw
@@ -171,6 +189,8 @@ export const AccelerationProfileChart = () => {
       if (filtered > accelFilteredMax) accelFilteredMax = filtered
       if (jerk < jerkMin) jerkMin = jerk
       if (jerk > jerkMax) jerkMax = jerk
+      if (hic < hicMin) hicMin = hic
+      if (hic > hicMax) hicMax = hic
 
       if (hasVel) {
         const v = velocity[i]
@@ -186,6 +206,8 @@ export const AccelerationProfileChart = () => {
     const yAccelMax = Math.max(ACCEL_DEFAULT_MAX, accelMax + 1)
     const yJerkMin = Math.min(JERK_DEFAULT_MIN, jerkMin - 100)
     const yJerkMax = Math.max(JERK_DEFAULT_MAX, jerkMax + 100)
+    const yHicMin = Math.min(0, hicMin - 1)
+    const yHicMax = Math.max(10, hicMax + 5)
 
     const yVelMin = hasVel ? velMin - 0.5 : 0
     const yVelMax = hasVel ? velMax + 0.5 : 1
@@ -195,6 +217,7 @@ export const AccelerationProfileChart = () => {
         { min: yJerkMin, max: yJerkMax },
         { min: yVelMin, max: yVelMax, show: hasVel },
         { min: yAccelMin, max: yAccelMax },
+        { min: yHicMin, max: yHicMax },
       ],
       visualMap: [
         {
@@ -274,6 +297,15 @@ export const AccelerationProfileChart = () => {
           lineStyle: { width: 2, color: COLOR_VELOCITY, opacity: 0.9 },
           data: hasVel ? samples.map((s, i) => [s.timeMs, velocity[i]]) : [],
           z: 4,
+        },
+        {
+          name: 'HIC',
+          type: 'line',
+          yAxisIndex: 3,
+          showSymbol: false,
+          lineStyle: { width: 2, color: COLOR_HIC, opacity: 0.8 },
+          data: samples.map((s) => [s.timeMs, s.hic]),
+          z: 5,
         },
       ],
     })

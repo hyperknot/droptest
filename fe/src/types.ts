@@ -8,4 +8,5 @@ export interface ProcessedSample {
   accelRaw: number
   accelFiltered: number
   jerkSG: number
+  hic: number
 }
