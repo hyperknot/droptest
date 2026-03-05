@@ -153,11 +153,11 @@ class UIStore {
       rawSamples: [],
       processedSamples: [],
 
-      accelCfc: 75,
+      accelCfc: 100,
       jerkWindowMs: 11,
       jerkPolyOrder: 1,
-      hicWindowMs: 15,
-      hicExponent: 2,
+      hicWindowMs: 36,
+      hicExponent: 1.5,
 
       visibleTimeRange: null,
       peakAccel: null,
