@@ -234,16 +234,16 @@ class UIStore {
     this.recomputePeaks()
   }
 
-  setAccelCfc(val: number) {
-    const clamped = Math.max(5, Math.min(225, val))
-    this.setState('accelCfc', clamped)
+  recompute() {
     this.recomputeProcessedSamples()
   }
 
+  setAccelCfc(val: number) {
+    this.setState('accelCfc', Math.max(5, Math.min(225, val)))
+  }
+
   setJerkWindowMs(val: number) {
-    const clamped = Math.max(5, Math.min(50, val))
-    this.setState('jerkWindowMs', clamped)
-    this.recomputeProcessedSamples()
+    this.setState('jerkWindowMs', Math.max(5, Math.min(50, val)))
   }
 
   setJerkPolyOrder(val: 1 | 3) {
@@ -252,15 +252,11 @@ class UIStore {
   }
 
   setHicWindowMs(val: number) {
-    const clamped = Math.max(5, Math.min(50, val))
-    this.setState('hicWindowMs', clamped)
-    this.recomputeProcessedSamples()
+    this.setState('hicWindowMs', Math.max(5, Math.min(100, val)))
   }
 
   setHicExponent(val: number) {
-    const clamped = Math.max(1.0, Math.min(3.5, val))
-    this.setState('hicExponent', clamped)
-    this.recomputeProcessedSamples()
+    this.setState('hicExponent', Math.max(1.0, Math.min(3.5, val)))
   }
 
   async loadFile(file: File) {

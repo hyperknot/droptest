@@ -1,4 +1,4 @@
-import { For, type JSX, type ParentProps } from 'solid-js'
+import { createSignal, For, type JSX, onCleanup, type ParentProps } from 'solid-js'
 import { uiStore } from '../stores/uiStore'
 import { AccelerationProfileChart } from './AccelerationProfileChart'
 
@@ -39,25 +39,76 @@ const SliderControl = (props: {
   step: number
   unit: string
   onChange: (v: number) => void
-}) => (
-  <div class="space-y-1 mt-2">
-    <div class="flex justify-between items-center">
-      <label class="text-xs font-medium text-neutral-700">{props.label}</label>
-      <span class="text-xs font-mono bg-white border border-neutral-300 px-1.5 py-0.5">
-        {props.value} {props.unit}
-      </span>
+  onCommit: () => void
+}) => {
+  const [inputText, setInputText] = createSignal<string | null>(null)
+  let inputTimer: ReturnType<typeof setTimeout> | null = null
+
+  onCleanup(() => {
+    if (inputTimer != null) clearTimeout(inputTimer)
+  })
+
+  const commitInput = (text: string) => {
+    const v = Number(text)
+    if (!Number.isNaN(v)) {
+      const clamped = Math.min(props.max, Math.max(props.min, v))
+      props.onChange(clamped)
+      props.onCommit()
+    }
+    setInputText(null)
+  }
+
+  const handleInput = (text: string) => {
+    setInputText(text)
+    if (inputTimer != null) clearTimeout(inputTimer)
+    inputTimer = setTimeout(() => {
+      inputTimer = null
+      commitInput(text)
+    }, 500)
+  }
+
+  return (
+    <div class="space-y-1 mt-2">
+      <div class="flex justify-between items-center">
+        <label class="text-xs font-medium text-neutral-700">{props.label}</label>
+        <div class="flex items-center gap-1">
+          <input
+            type="number"
+            min={props.min}
+            max={props.max}
+            step={props.step}
+            value={inputText() ?? props.value}
+            onInput={(e) => handleInput(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                if (inputTimer != null) clearTimeout(inputTimer)
+                inputTimer = null
+                commitInput(e.currentTarget.value)
+              }
+            }}
+            onBlur={(e) => {
+              if (inputTimer != null) clearTimeout(inputTimer)
+              inputTimer = null
+              commitInput(e.currentTarget.value)
+            }}
+            class="w-16 text-xs font-mono bg-white border border-neutral-300 px-1.5 py-0.5 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          {props.unit && <span class="text-xs text-neutral-500">{props.unit}</span>}
+        </div>
+      </div>
+      <input
+        type="range"
+        min={props.min}
+        max={props.max}
+        step={props.step}
+        value={props.value}
+        onInput={(e) => props.onChange(Number(e.currentTarget.value))}
+        onChange={() => props.onCommit()}
+        class="w-full h-2 bg-neutral-200 appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-black [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-black [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
+      />
     </div>
-    <input
-      type="range"
-      min={props.min}
-      max={props.max}
-      step={props.step}
-      value={props.value}
-      onInput={(e) => props.onChange(Number(e.currentTarget.value))}
-      class="w-full h-2 bg-neutral-200 appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-black [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-black [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
-    />
-  </div>
-)
+  )
+}
 
 const ToggleButton = (props: {
   active: boolean
@@ -180,6 +231,7 @@ const FilteredAccelSection = () => (
       step={5}
       unit=""
       onChange={(v) => uiStore.setAccelCfc(v)}
+      onCommit={() => uiStore.recompute()}
     />
   </Section>
 )
@@ -202,6 +254,7 @@ const JerkSection = () => (
       step={2}
       unit="ms"
       onChange={(v) => uiStore.setJerkWindowMs(v)}
+      onCommit={() => uiStore.recompute()}
     />
     <div class="mt-2">
       <label class="text-xs font-medium text-neutral-700 block mb-1">Polynomial Order</label>
@@ -297,26 +350,27 @@ const DRISection = () => (
   </Section>
 )
 
-const HICSection = () => (
+const SICSection = () => (
   <Section>
-    <SectionHeader title="HIC (Head Injury Criterion)" />
+    <SectionHeader title="SIC (Spine Injury Criterion)" />
     <AlgorithmInfo
       lines={[
-        `HIC = max[(t₂-t₁)·(∫a dt / (t₂-t₁))^${uiStore.state.hicExponent}]`,
+        `SIC = max[(t₂-t₁)·(∫a dt / (t₂-t₁))^${uiStore.state.hicExponent}]`,
         `window=${uiStore.state.hicWindowMs} ms`,
       ]}
     />
     <div class="space-y-2 text-sm mb-3">
-      <MetricRow label="HIC" value={formatNumber(uiStore.state.peakHIC, 1)} large />
+      <MetricRow label="SIC" value={formatNumber(uiStore.state.peakHIC, 1)} large />
     </div>
     <SliderControl
       label="Window Size"
       value={uiStore.state.hicWindowMs}
       min={5}
-      max={50}
+      max={100}
       step={1}
       unit="ms"
       onChange={(v) => uiStore.setHicWindowMs(v)}
+      onCommit={() => uiStore.recompute()}
     />
     <SliderControl
       label="Exponent"
@@ -326,6 +380,7 @@ const HICSection = () => (
       step={0.1}
       unit=""
       onChange={(v) => uiStore.setHicExponent(v)}
+      onCommit={() => uiStore.recompute()}
     />
   </Section>
 )
@@ -350,7 +405,7 @@ export const MainLayout = () => (
       <RawAccelSection />
       <EnergySection />
       <DRISection />
-      <HICSection />
+      <SICSection />
       <FilteredAccelSection />
       <JerkSection />
     </aside>
