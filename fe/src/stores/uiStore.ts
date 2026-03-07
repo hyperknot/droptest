@@ -156,8 +156,8 @@ class UIStore {
       accelCfc: 100,
       jerkWindowMs: 11,
       jerkPolyOrder: 1,
-      hicWindowMs: 36,
-      hicExponent: 1.5,
+      hicWindowMs: 100,
+      hicExponent: 2.0,
 
       visibleTimeRange: null,
       peakAccel: null,
