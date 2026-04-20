@@ -63,6 +63,7 @@ interface UIState {
   // UI state
   rangeRequest: { type: 'full' | 'firstHit'; id: number } | null
   isDragging: boolean
+  isProcessing: boolean
   error: string | null
 }
 
@@ -186,6 +187,7 @@ class UIStore {
 
       rangeRequest: null,
       isDragging: false,
+      isProcessing: false,
       error: null,
     })
 
@@ -285,6 +287,7 @@ class UIStore {
     this.setState('bounceHeightCm', null)
 
     this.setState('hitRange', null)
+    this.setState('isProcessing', true)
 
     try {
       const rawData = await parseDroppedFile(file)
@@ -323,6 +326,8 @@ class UIStore {
     } catch (e: any) {
       console.error(e)
       this.setState('error', e?.message || 'Failed to parse file')
+    } finally {
+      this.setState('isProcessing', false)
     }
   }
 
