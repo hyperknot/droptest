@@ -1,4 +1,13 @@
-import savitzkyGolay from 'ml-savitzky-golay'
+import savitzkyGolayModule from 'ml-savitzky-golay'
+
+const savitzkyGolay =
+  typeof savitzkyGolayModule === 'function'
+    ? savitzkyGolayModule
+    : typeof savitzkyGolayModule?.default === 'function'
+      ? savitzkyGolayModule.default
+      : typeof savitzkyGolayModule?.default?.default === 'function'
+        ? savitzkyGolayModule.default.default
+        : null
 
 /**
  * Savitzky-Golay filter for accelerometer data (JS/ml-savitzky-golay).
@@ -96,6 +105,10 @@ export function sgFilter(
   }
 
   const dt = 1 / sampleRate
+
+  if (!savitzkyGolay) {
+    throw new Error('ml-savitzky-golay export not found')
+  }
 
   // Run filter with post-padding to avoid edge spikes
   return savitzkyGolay(accelValues, dt, {
