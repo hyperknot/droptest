@@ -1,5 +1,5 @@
 import { createStore, type SetStoreFunction } from 'solid-js/store'
-import { parseRawCSV } from '../lib/csv-parser'
+import { parseDroppedFile } from '../lib/csv-parser'
 import { cfcFilter } from '../lib/filter/cfc'
 import { detectOriginTime, findFirstHitRange } from '../lib/filter/range'
 import { resampleToUniform } from '../lib/filter/resample'
@@ -287,8 +287,7 @@ class UIStore {
     this.setState('hitRange', null)
 
     try {
-      const text = await file.text()
-      const rawData = parseRawCSV(text) // RawSample[]
+      const rawData = await parseDroppedFile(file)
 
       // Log comprehensive sample rate diagnostics (before resampling)
       // logSampleRateDiagnostics(file.name, rawData)

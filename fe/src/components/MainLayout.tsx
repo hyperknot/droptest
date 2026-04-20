@@ -404,10 +404,10 @@ export const MainLayout = () => (
       <SidebarHeader />
       <RawAccelSection />
       <EnergySection />
-      <DRISection />
       <SICSection />
       <FilteredAccelSection />
       <JerkSection />
+      <DRISection />
     </aside>
   </div>
 )

@@ -31,9 +31,9 @@ export const LandingPage = () => {
             uiStore.state.isDragging ? 'border-black border-2' : 'border-neutral-400'
           }`}
         >
-          <p class="text-lg font-medium mb-2">Drop a CSV drop test file here</p>
+          <p class="text-lg font-medium mb-2">Drop a drop test data file here</p>
           <p class="text-xs text-neutral-500">
-            Expected format: CSV with columns: time0, datetime, accel
+            Supports CSV, TXT, LVM, MEAS9206, XLSX, and XLSB files with time + acceleration data.
           </p>
         </div>
 
