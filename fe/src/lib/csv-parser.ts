@@ -355,7 +355,136 @@ function columnIndex(ref: string | null): number {
   return Math.max(0, index - 1)
 }
 
+function decodeXmlText(value: string): string {
+  return value
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+}
+
+function parseXmlAttributes(xml: string): Record<string, string> {
+  const attrs: Record<string, string> = {}
+
+  for (const match of xml.matchAll(/([A-Za-z_:][\w:.-]*)\s*=\s*"([^"]*)"/g)) {
+    attrs[match[1]] = decodeXmlText(match[2])
+  }
+
+  return attrs
+}
+
+function parseSharedStringsXml(xml: string): Array<string> {
+  const out: Array<string> = []
+
+  for (const match of xml.matchAll(/<(?:\w+:)?si\b[^>]*>([\s\S]*?)<\/(?:\w+:)?si>/g)) {
+    const text = Array.from(match[1].matchAll(/<(?:\w+:)?t\b[^>]*>([\s\S]*?)<\/(?:\w+:)?t>/g))
+      .map((part) => decodeXmlText(part[1]))
+      .join('')
+    out.push(text)
+  }
+
+  return out
+}
+
+function parseWorksheetRowsFromXml(xml: string, sharedStrings: Array<string>): Array<Array<unknown>> {
+  const rows: Array<Array<unknown>> = []
+
+  for (const rowMatch of xml.matchAll(/<(?:\w+:)?row\b[^>]*>([\s\S]*?)<\/(?:\w+:)?row>/g)) {
+    const rowXml = rowMatch[1]
+    const out: Array<unknown> = []
+    let nextIdx = 0
+
+    for (const cellMatch of rowXml.matchAll(/<(?:\w+:)?c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?c>)/g)) {
+      const attrs = parseXmlAttributes(cellMatch[1])
+      const ref = attrs.r ?? ''
+      const idx = ref ? columnIndex(ref) : nextIdx
+      const type = attrs.t ?? ''
+      const body = cellMatch[2] ?? ''
+
+      const rawText =
+        body.match(/<(?:\w+:)?v\b[^>]*>([\s\S]*?)<\/(?:\w+:)?v>/)?.[1]
+        ?? body.match(/<(?:\w+:)?t\b[^>]*>([\s\S]*?)<\/(?:\w+:)?t>/)?.[1]
+        ?? ''
+
+      let value: unknown = decodeXmlText(rawText)
+      if (type === 's') value = sharedStrings[Number(value)] ?? ''
+      else if (type !== 'str' && type !== 'inlineStr') {
+        const num = parseNumber(value)
+        value = Number.isFinite(num) ? num : value
+      }
+
+      out[idx] = value
+      nextIdx = idx + 1
+    }
+
+    rows.push(out)
+  }
+
+  return rows
+}
+
+async function parseXlsxWorkbookWithoutDomParser(file: File): Promise<Array<RawSample>> {
+  const JSZip = (await import('jszip')).default
+  const zip = await JSZip.loadAsync(await file.arrayBuffer())
+
+  const workbookXml = await zip.file('xl/workbook.xml')?.async('string')
+  const relsXml = await zip.file('xl/_rels/workbook.xml.rels')?.async('string')
+  if (!workbookXml || !relsXml) throw new Error('Invalid XLSX workbook')
+
+  const sharedStringsXml = await zip.file('xl/sharedStrings.xml')?.async('string')
+  const sharedStrings = sharedStringsXml ? parseSharedStringsXml(sharedStringsXml) : []
+
+  const relTargets = new Map(
+    Array.from(relsXml.matchAll(/<(?:\w+:)?Relationship\b([^>]*)\/?>(?:<\/(?:\w+:)?Relationship>)?/g)).map((match) => {
+      const attrs = parseXmlAttributes(match[1])
+      return [attrs.Id ?? '', attrs.Target ?? '']
+    }),
+  )
+
+  for (const match of workbookXml.matchAll(/<(?:\w+:)?sheet\b([^>]*)\/?>(?:<\/(?:\w+:)?sheet>)?/g)) {
+    const attrs = parseXmlAttributes(match[1])
+    const relId = attrs['r:id'] ?? attrs.id ?? attrs.Id ?? ''
+    const target = relTargets.get(relId)
+    if (!target) continue
+
+    const sheetPath = target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.\//, '')}`
+    const sheetXml = await zip.file(sheetPath)?.async('string')
+    if (!sheetXml) continue
+
+    const rows = parseWorksheetRowsFromXml(sheetXml, sharedStrings)
+    const parsed = parseWorkbookRows(rows)
+    if (parsed) return parsed
+  }
+
+  throw new Error('Could not find time/acceleration data in XLSX workbook')
+}
+
+async function parseSpreadsheetWorkbook(file: File): Promise<Array<RawSample>> {
+  const XLSX = await import('xlsx')
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' })
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName]
+    const rows = XLSX.utils.sheet_to_json<Array<unknown>>(sheet, {
+      header: 1,
+      raw: true,
+      defval: null,
+      blankrows: false,
+    })
+
+    const parsed = parseWorkbookRows(rows)
+    if (parsed) return parsed
+  }
+
+  throw new Error('Could not find time/acceleration data in workbook')
+}
+
 async function parseXlsxWorkbook(file: File): Promise<Array<RawSample>> {
+  if (typeof DOMParser === 'undefined') {
+    return parseXlsxWorkbookWithoutDomParser(file)
+  }
+
   const JSZip = (await import('jszip')).default
   const zip = await JSZip.loadAsync(await file.arrayBuffer())
 
@@ -426,23 +555,7 @@ async function parseXlsxWorkbook(file: File): Promise<Array<RawSample>> {
 }
 
 async function parseXlsbWorkbook(file: File): Promise<Array<RawSample>> {
-  const XLSX = await import('xlsx')
-  const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' })
-
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName]
-    const rows = XLSX.utils.sheet_to_json<Array<unknown>>(sheet, {
-      header: 1,
-      raw: true,
-      defval: null,
-      blankrows: false,
-    })
-
-    const parsed = parseWorkbookRows(rows)
-    if (parsed) return parsed
-  }
-
-  throw new Error('Could not find time/acceleration data in XLSB workbook')
+  return parseSpreadsheetWorkbook(file)
 }
 
 async function parseWorkbook(file: File): Promise<Array<RawSample>> {
