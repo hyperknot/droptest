@@ -90,13 +90,15 @@ function findTimeHeaderColumns(headers: Array<string>): Array<number> {
   const out: Array<number> = []
 
   for (const pattern of preferredPatterns) {
-    const idx = headers.findIndex((header) => header === pattern)
+    const idx = headers.indexOf(pattern)
     if (idx !== -1 && !out.includes(idx)) out.push(idx)
   }
 
   for (const pattern of preferredPatterns) {
     const idx = headers.findIndex(
-      (header) => !['datetime', 'timestamp', 'date', 'date_time'].includes(header) && header.includes(pattern),
+      (header) =>
+        !['datetime', 'timestamp', 'date', 'date_time'].includes(header) &&
+        header.includes(pattern),
     )
     if (idx !== -1 && !out.includes(idx)) out.push(idx)
   }
@@ -105,27 +107,24 @@ function findTimeHeaderColumns(headers: Array<string>): Array<number> {
 }
 
 function findAccelHeaderColumn(headers: Array<string>, timeCol: number): number {
-  const specificPatterns = [
-    'accel',
-    'acceleration',
-    'acc',
-    'a raw',
-    'araw',
-    'g-sensor',
-  ]
+  const specificPatterns = ['accel', 'acceleration', 'acc', 'a raw', 'araw', 'g-sensor']
   const specificCol = headers.findIndex(
-    (header, idx) => idx !== timeCol && specificPatterns.some((pattern) => header.includes(pattern)),
+    (header, idx) =>
+      idx !== timeCol && specificPatterns.some((pattern) => header.includes(pattern)),
   )
   if (specificCol !== -1) return specificCol
 
   return headers.findIndex(
-    (header, idx) => idx !== timeCol && ['measured value', 'value'].some((pattern) => header === pattern),
+    (header, idx) =>
+      idx !== timeCol && ['measured value', 'value'].some((pattern) => header === pattern),
   )
 }
 
 function parseDelimitedRows(rows: Array<Array<string>>): Array<RawSample> | null {
   for (let headerIdx = 0; headerIdx < Math.min(rows.length, 50); headerIdx++) {
-    const headers = Array.from({ length: rows[headerIdx].length }, (_, i) => normalizeText(rows[headerIdx][i]))
+    const headers = Array.from({ length: rows[headerIdx].length }, (_, i) =>
+      normalizeText(rows[headerIdx][i]),
+    )
     const timeCols = findTimeHeaderColumns(headers)
 
     for (const timeCol of timeCols) {
@@ -175,10 +174,7 @@ function parseRowsHeuristically(rows: Array<Array<unknown>>): Array<RawSample> |
       if (delta > 0) steps.push(delta)
     }
 
-    const monotonic =
-      values.length < 2
-        ? 0
-        : steps.length / (values.length - 1)
+    const monotonic = values.length < 2 ? 0 : steps.length / (values.length - 1)
 
     return {
       col,
@@ -196,10 +192,11 @@ function parseRowsHeuristically(rows: Array<Array<unknown>>): Array<RawSample> |
   if (timeCol == null) return null
 
   const accelCandidates = colStats.filter((stat) => stat.col !== timeCol && stat.count >= 20)
-  const accelCol = [...accelCandidates]
-    .filter((stat) => stat.monotonic < 0.95)
-    .sort((a, b) => Math.abs(b.range) - Math.abs(a.range))[0]?.col
-    ?? accelCandidates.sort((a, b) => Math.abs(b.range) - Math.abs(a.range))[0]?.col
+  const accelCol =
+    [...accelCandidates]
+      .filter((stat) => stat.monotonic < 0.95)
+      .sort((a, b) => Math.abs(b.range) - Math.abs(a.range))[0]?.col ??
+    accelCandidates.sort((a, b) => Math.abs(b.range) - Math.abs(a.range))[0]?.col
 
   if (accelCol == null) return null
 
@@ -259,7 +256,10 @@ function parseSimpleNumericText(text: string): Array<RawSample> | null {
   return enoughMatches ? toRawSamples(values) : null
 }
 
-function parseTextDataWithConfidence(text: string): { samples: Array<RawSample>; confidence: number } {
+function parseTextDataWithConfidence(text: string): {
+  samples: Array<RawSample>
+  confidence: number
+} {
   const meas = parseMeas9206(text)
   if (meas) return { samples: meas, confidence: 4 }
 
@@ -294,8 +294,7 @@ function parseTextFileBytes(bytes: Uint8Array): Array<RawSample> {
     try {
       const parsed = parseTextDataWithConfidence(decodeTextBytes(bytes, encoding))
       if (!best || parsed.confidence > best.confidence) best = parsed
-    }
-    catch (error) {
+    } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error))
     }
   }
@@ -311,52 +310,8 @@ function parseWorkbookRows(rows: Array<Array<unknown>>): Array<RawSample> | null
   return parseRowsHeuristically(rows)
 }
 
-function parseXml(xml: string): Document {
-  return new DOMParser().parseFromString(xml, 'application/xml')
-}
-
-function elements(node: ParentNode, tagName: string): Array<Element> {
-  return Array.from((node as Document | Element).getElementsByTagNameNS('*', tagName))
-}
-
-function directChildren(node: ParentNode, tagName: string): Array<Element> {
-  return Array.from(node.childNodes).filter(
-    (child): child is Element => child.nodeType === Node.ELEMENT_NODE && (child as Element).localName === tagName,
-  )
-}
-
-function attr(node: Element, name: string): string {
-  return (
-    node.getAttribute(name)
-    ?? Array.from(node.attributes).find(
-      (attribute) => attribute.name === name || attribute.localName === name,
-    )?.value
-    ?? ''
-  )
-}
-
-function firstText(node: ParentNode, tagNames: Array<string>): string {
-  for (const tagName of tagNames) {
-    const text = elements(node, tagName)[0]?.textContent?.trim()
-    if (text) return text
-  }
-
-  return ''
-}
-
-function columnIndex(ref: string | null): number {
-  const letters = (ref ?? '').match(/[A-Z]+/i)?.[0] ?? ''
-  let index = 0
-
-  for (const ch of letters.toUpperCase()) {
-    index = index * 26 + ch.charCodeAt(0) - 64
-  }
-
-  return Math.max(0, index - 1)
-}
-
-function decodeXmlText(value: string): string {
-  return value
+function decodeXmlText(text: string): string {
+  return text
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
@@ -364,67 +319,54 @@ function decodeXmlText(value: string): string {
     .replace(/&amp;/g, '&')
 }
 
-function parseXmlAttributes(xml: string): Record<string, string> {
-  const attrs: Record<string, string> = {}
-
-  for (const match of xml.matchAll(/([A-Za-z_:][\w:.-]*)\s*=\s*"([^"]*)"/g)) {
-    attrs[match[1]] = decodeXmlText(match[2])
-  }
-
-  return attrs
+function parseXmlAttrs(tag: string): Record<string, string> {
+  return Object.fromEntries(
+    Array.from(tag.matchAll(/([\w:.-]+)="([^"]*)"/g), (match) => [match[1], decodeXmlText(match[2])]),
+  )
 }
 
-function parseSharedStringsXml(xml: string): Array<string> {
-  const out: Array<string> = []
-
-  for (const match of xml.matchAll(/<(?:\w+:)?si\b[^>]*>([\s\S]*?)<\/(?:\w+:)?si>/g)) {
-    const text = Array.from(match[1].matchAll(/<(?:\w+:)?t\b[^>]*>([\s\S]*?)<\/(?:\w+:)?t>/g))
-      .map((part) => decodeXmlText(part[1]))
-      .join('')
-    out.push(text)
+function columnIndex(ref: string): number {
+  const letters = ref.match(/[A-Z]+/i)?.[0] ?? ''
+  let index = 0
+  for (const ch of letters.toUpperCase()) {
+    index = index * 26 + ch.charCodeAt(0) - 64
   }
-
-  return out
+  return Math.max(0, index - 1)
 }
 
-function parseWorksheetRowsFromXml(xml: string, sharedStrings: Array<string>): Array<Array<unknown>> {
+function parseSheetXmlRows(xml: string, sharedStrings: Array<string>): Array<Array<unknown>> {
   const rows: Array<Array<unknown>> = []
 
   for (const rowMatch of xml.matchAll(/<(?:\w+:)?row\b[^>]*>([\s\S]*?)<\/(?:\w+:)?row>/g)) {
-    const rowXml = rowMatch[1]
-    const out: Array<unknown> = []
+    const row: Array<unknown> = []
     let nextIdx = 0
 
-    for (const cellMatch of rowXml.matchAll(/<(?:\w+:)?c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?c>)/g)) {
-      const attrs = parseXmlAttributes(cellMatch[1])
-      const ref = attrs.r ?? ''
-      const idx = ref ? columnIndex(ref) : nextIdx
-      const type = attrs.t ?? ''
-      const body = cellMatch[2] ?? ''
-
-      const rawText =
-        body.match(/<(?:\w+:)?v\b[^>]*>([\s\S]*?)<\/(?:\w+:)?v>/)?.[1]
-        ?? body.match(/<(?:\w+:)?t\b[^>]*>([\s\S]*?)<\/(?:\w+:)?t>/)?.[1]
+    for (const cellMatch of rowMatch[1].matchAll(/<(?:\w+:)?c\b([^>]*)>([\s\S]*?)<\/(?:\w+:)?c>/g)) {
+      const attrs = parseXmlAttrs(cellMatch[1])
+      const idx = attrs.r ? columnIndex(attrs.r) : nextIdx
+      const rawValue =
+        cellMatch[2].match(/<(?:\w+:)?v\b[^>]*>([\s\S]*?)<\/(?:\w+:)?v>/)?.[1]
+        ?? cellMatch[2].match(/<(?:\w+:)?t\b[^>]*>([\s\S]*?)<\/(?:\w+:)?t>/)?.[1]
         ?? ''
 
-      let value: unknown = decodeXmlText(rawText)
-      if (type === 's') value = sharedStrings[Number(value)] ?? ''
-      else if (type !== 'str' && type !== 'inlineStr') {
+      let value: unknown = decodeXmlText(rawValue)
+      if (attrs.t === 's') value = sharedStrings[Number(value)] ?? ''
+      else if (attrs.t !== 'str' && attrs.t !== 'inlineStr') {
         const num = parseNumber(value)
         value = Number.isFinite(num) ? num : value
       }
 
-      out[idx] = value
+      row[idx] = value
       nextIdx = idx + 1
     }
 
-    rows.push(out)
+    rows.push(row)
   }
 
   return rows
 }
 
-async function parseXlsxWorkbookWithoutDomParser(file: File): Promise<Array<RawSample>> {
+async function parseXlsxWorkbookFallback(file: File): Promise<Array<RawSample>> {
   const JSZip = (await import('jszip')).default
   const zip = await JSZip.loadAsync(await file.arrayBuffer())
 
@@ -433,18 +375,27 @@ async function parseXlsxWorkbookWithoutDomParser(file: File): Promise<Array<RawS
   if (!workbookXml || !relsXml) throw new Error('Invalid XLSX workbook')
 
   const sharedStringsXml = await zip.file('xl/sharedStrings.xml')?.async('string')
-  const sharedStrings = sharedStringsXml ? parseSharedStringsXml(sharedStringsXml) : []
-
-  const relTargets = new Map(
-    Array.from(relsXml.matchAll(/<(?:\w+:)?Relationship\b([^>]*)\/?>(?:<\/(?:\w+:)?Relationship>)?/g)).map((match) => {
-      const attrs = parseXmlAttributes(match[1])
-      return [attrs.Id ?? '', attrs.Target ?? '']
-    }),
+  const sharedStrings = Array.from(
+    (sharedStringsXml ?? '').matchAll(/<(?:\w+:)?si\b[^>]*>([\s\S]*?)<\/(?:\w+:)?si>/g),
+    (match) =>
+      Array.from(match[1].matchAll(/<(?:\w+:)?t\b[^>]*>([\s\S]*?)<\/(?:\w+:)?t>/g), (part) =>
+        decodeXmlText(part[1]),
+      ).join(''),
   )
 
-  for (const match of workbookXml.matchAll(/<(?:\w+:)?sheet\b([^>]*)\/?>(?:<\/(?:\w+:)?sheet>)?/g)) {
-    const attrs = parseXmlAttributes(match[1])
-    const relId = attrs['r:id'] ?? attrs.id ?? attrs.Id ?? ''
+  const relTargets = new Map(
+    Array.from(
+      relsXml.matchAll(/<(?:\w+:)?Relationship\b([^>]*)\/>/g),
+      (match) => {
+        const attrs = parseXmlAttrs(match[1])
+        return [attrs.Id ?? '', attrs.Target ?? '']
+      },
+    ),
+  )
+
+  for (const sheetMatch of workbookXml.matchAll(/<(?:\w+:)?sheet\b([^>]*)\/>/g)) {
+    const attrs = parseXmlAttrs(sheetMatch[1])
+    const relId = attrs['r:id'] ?? ''
     const target = relTargets.get(relId)
     if (!target) continue
 
@@ -452,8 +403,7 @@ async function parseXlsxWorkbookWithoutDomParser(file: File): Promise<Array<RawS
     const sheetXml = await zip.file(sheetPath)?.async('string')
     if (!sheetXml) continue
 
-    const rows = parseWorksheetRowsFromXml(sheetXml, sharedStrings)
-    const parsed = parseWorkbookRows(rows)
+    const parsed = parseWorkbookRows(parseSheetXmlRows(sheetXml, sharedStrings))
     if (parsed) return parsed
   }
 
@@ -480,93 +430,24 @@ async function parseSpreadsheetWorkbook(file: File): Promise<Array<RawSample>> {
   throw new Error('Could not find time/acceleration data in workbook')
 }
 
-async function parseXlsxWorkbook(file: File): Promise<Array<RawSample>> {
-  if (typeof DOMParser === 'undefined') {
-    return parseXlsxWorkbookWithoutDomParser(file)
-  }
-
-  const JSZip = (await import('jszip')).default
-  const zip = await JSZip.loadAsync(await file.arrayBuffer())
-
-  const workbookXml = await zip.file('xl/workbook.xml')?.async('string')
-  const relsXml = await zip.file('xl/_rels/workbook.xml.rels')?.async('string')
-  if (!workbookXml || !relsXml) throw new Error('Invalid XLSX workbook')
-
-  const workbookDoc = parseXml(workbookXml)
-  const relsDoc = parseXml(relsXml)
-
-  const sharedStringsXml = await zip.file('xl/sharedStrings.xml')?.async('string')
-  const sharedStrings = sharedStringsXml
-    ? elements(parseXml(sharedStringsXml), 'si').map((si) =>
-        elements(si, 't')
-          .map((t) => t.textContent ?? '')
-          .join(''),
-      )
-    : []
-
-  const relTargets = new Map(
-    elements(relsDoc, 'Relationship').map((rel) => [
-      attr(rel, 'Id'),
-      attr(rel, 'Target'),
-    ]),
-  )
-
-  for (const sheet of elements(workbookDoc, 'sheet')) {
-    const relId = attr(sheet, 'r:id') || attr(sheet, 'id') || attr(sheet, 'Id')
-    const target = relTargets.get(relId)
-    if (!target) continue
-
-    const sheetPath = target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.\//, '')}`
-    const sheetXml = await zip.file(sheetPath)?.async('string')
-    if (!sheetXml) continue
-
-    const sheetDoc = parseXml(sheetXml)
-    const sheetData = elements(sheetDoc, 'sheetData')[0]
-    if (!sheetData) continue
-
-    const rows = directChildren(sheetData, 'row').map((row) => {
-      const out: Array<unknown> = []
-      let nextIdx = 0
-
-      for (const cell of directChildren(row, 'c')) {
-        const ref = attr(cell, 'r')
-        const idx = ref ? columnIndex(ref) : nextIdx
-        const type = attr(cell, 't')
-        let value: unknown = firstText(cell, ['v', 't'])
-
-        if (type === 's') value = sharedStrings[Number(value)] ?? ''
-        else if (type !== 'str' && type !== 'inlineStr') {
-          const num = parseNumber(value)
-          value = Number.isFinite(num) ? num : value
-        }
-
-        out[idx] = value
-        nextIdx = idx + 1
-      }
-
-      return out
-    })
-
-    const parsed = parseWorkbookRows(rows)
-    if (parsed) return parsed
-  }
-
-  throw new Error('Could not find time/acceleration data in XLSX workbook')
-}
-
-async function parseXlsbWorkbook(file: File): Promise<Array<RawSample>> {
-  return parseSpreadsheetWorkbook(file)
-}
-
 async function parseWorkbook(file: File): Promise<Array<RawSample>> {
-  return file.name.toLowerCase().endsWith('.xlsb') ? parseXlsbWorkbook(file) : parseXlsxWorkbook(file)
+  try {
+    return await parseSpreadsheetWorkbook(file)
+  } catch (error) {
+    if (file.name.toLowerCase().endsWith('.xlsx')) {
+      return parseXlsxWorkbookFallback(file)
+    }
+    throw error
+  }
 }
 
 export async function parseDroppedFile(file: File): Promise<Array<RawSample>> {
   const name = file.name.toLowerCase()
 
   if (name.endsWith('.sum')) {
-    throw new Error('SUM files only reference a measurement file. Drop the matching .meas9206 or .sum.xlsx instead.')
+    throw new Error(
+      'SUM files only reference a measurement file. Drop the matching .meas9206 or .sum.xlsx instead.',
+    )
   }
 
   if (name.endsWith('.xlsx') || name.endsWith('.xlsb')) {
