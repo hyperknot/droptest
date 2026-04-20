@@ -259,21 +259,49 @@ function parseSimpleNumericText(text: string): Array<RawSample> | null {
   return enoughMatches ? toRawSamples(values) : null
 }
 
-function parseTextData(text: string): Array<RawSample> {
+function parseTextDataWithConfidence(text: string): { samples: Array<RawSample>; confidence: number } {
   const meas = parseMeas9206(text)
-  if (meas) return meas
-
-  const simple = parseSimpleNumericText(text)
-  if (simple) return simple
+  if (meas) return { samples: meas, confidence: 4 }
 
   const rows = extractRowsFromText(text)
+
   const structured = parseDelimitedRows(rows)
-  if (structured) return structured
+  if (structured) return { samples: structured, confidence: 3 }
+
+  const simple = parseSimpleNumericText(text)
+  if (simple) return { samples: simple, confidence: 1 }
 
   const heuristic = parseRowsHeuristically(rows)
-  if (heuristic) return heuristic
+  if (heuristic) return { samples: heuristic, confidence: 2 }
 
   throw new Error('Could not find time/acceleration data in file')
+}
+
+function parseTextData(text: string): Array<RawSample> {
+  return parseTextDataWithConfidence(text).samples
+}
+
+function decodeTextBytes(bytes: Uint8Array, encoding: string): string {
+  return new TextDecoder(encoding, { fatal: false }).decode(bytes)
+}
+
+function parseTextFileBytes(bytes: Uint8Array): Array<RawSample> {
+  const decodings = ['utf-8', 'windows-1252']
+  let best: { samples: Array<RawSample>; confidence: number } | null = null
+  let lastError: Error | null = null
+
+  for (const encoding of decodings) {
+    try {
+      const parsed = parseTextDataWithConfidence(decodeTextBytes(bytes, encoding))
+      if (!best || parsed.confidence > best.confidence) best = parsed
+    }
+    catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
+  if (best) return best.samples
+  throw lastError ?? new Error('Could not decode text file')
 }
 
 function parseWorkbookRows(rows: Array<Array<unknown>>): Array<RawSample> | null {
@@ -432,7 +460,7 @@ export async function parseDroppedFile(file: File): Promise<Array<RawSample>> {
     return parseWorkbook(file)
   }
 
-  return parseTextData(await file.text())
+  return parseTextFileBytes(new Uint8Array(await file.arrayBuffer()))
 }
 
 export function parseRawCSV(text: string): Array<RawSample> {
