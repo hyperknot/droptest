@@ -73,7 +73,7 @@ function extractRowsFromText(text: string): Array<Array<string>> {
     .replace(/^\uFEFF/, '')
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter(Boolean)
+    .filter((line) => line && !line.startsWith('#'))
     .map((line) => line.split(detectDelimiter(line)).map((part) => part.trim()))
 }
 
