@@ -62,6 +62,10 @@ export function sgFilter(
     throw new Error(`windowMs must be > 0, got ${windowMs}`)
   }
 
+  if (!Number.isFinite(sampleRate) || sampleRate <= 0) {
+    throw new Error(`sampleRate must be finite and > 0, got ${sampleRate}`)
+  }
+
   if (accelValues.length === 0) {
     throw new Error('accelValues array is empty')
   }

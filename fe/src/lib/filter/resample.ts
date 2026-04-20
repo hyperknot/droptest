@@ -64,7 +64,14 @@ export function resampleToUniform(samples: Array<RawSample>): ResampleResult {
 
   // Use median dt for uniform sample rate
   const medianDtMs = median(deltas)
+  if (!Number.isFinite(medianDtMs) || medianDtMs <= 0) {
+    throw new Error(`Invalid median sample interval: ${medianDtMs}`)
+  }
+
   const sampleRateHz = 1000 / medianDtMs
+  if (!Number.isFinite(sampleRateHz) || sampleRateHz <= 0) {
+    throw new Error(`Invalid sample rate inferred from data: ${sampleRateHz}`)
+  }
 
   // Build uniform time grid
   const t0 = sorted[0].timeMs
@@ -73,6 +80,9 @@ export function resampleToUniform(samples: Array<RawSample>): ResampleResult {
 
   // Number of samples in output (round to ensure we cover the full range)
   const numSamples = Math.round(totalDuration / medianDtMs) + 1
+  if (!Number.isFinite(numSamples) || numSamples <= 0 || numSamples > 5_000_000) {
+    throw new Error(`Refusing to resample to ${numSamples} points; inferred dt=${medianDtMs} ms`)
+  }
 
   const resampled: Array<RawSample> = []
 

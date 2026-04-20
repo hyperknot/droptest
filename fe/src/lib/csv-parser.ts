@@ -81,16 +81,27 @@ function findHeaderColumn(headers: Array<string>, patterns: Array<string>): numb
   return headers.findIndex((header) => patterns.some((pattern) => header.includes(pattern)))
 }
 
-function findTimeHeaderColumn(headers: Array<string>): number {
-  const exactPatterns = ['time0', 'ttotal', 'toffset', 'x_value', 'zeit', 'time']
-  const exactCol = headers.findIndex((header) => exactPatterns.includes(header))
-  if (exactCol !== -1) return exactCol
+function toDenseStringRow(row: Array<unknown>): Array<string> {
+  return Array.from({ length: row.length }, (_, i) => String(row[i] ?? ''))
+}
 
-  return headers.findIndex(
-    (header) =>
-      !['datetime', 'timestamp', 'date', 'date_time'].includes(header)
-      && exactPatterns.some((pattern) => header.includes(pattern)),
-  )
+function findTimeHeaderColumns(headers: Array<string>): Array<number> {
+  const preferredPatterns = ['toffset', 'time0', 'x_value', 'zeit', 'time', 'ttotal']
+  const out: Array<number> = []
+
+  for (const pattern of preferredPatterns) {
+    const idx = headers.findIndex((header) => header === pattern)
+    if (idx !== -1 && !out.includes(idx)) out.push(idx)
+  }
+
+  for (const pattern of preferredPatterns) {
+    const idx = headers.findIndex(
+      (header) => !['datetime', 'timestamp', 'date', 'date_time'].includes(header) && header.includes(pattern),
+    )
+    if (idx !== -1 && !out.includes(idx)) out.push(idx)
+  }
+
+  return out
 }
 
 function findAccelHeaderColumn(headers: Array<string>, timeCol: number): number {
@@ -114,25 +125,27 @@ function findAccelHeaderColumn(headers: Array<string>, timeCol: number): number 
 
 function parseDelimitedRows(rows: Array<Array<string>>): Array<RawSample> | null {
   for (let headerIdx = 0; headerIdx < Math.min(rows.length, 50); headerIdx++) {
-    const headers = rows[headerIdx].map(normalizeText)
-    const timeCol = findTimeHeaderColumn(headers)
-    const accelCol = timeCol === -1 ? -1 : findAccelHeaderColumn(headers, timeCol)
+    const headers = Array.from({ length: rows[headerIdx].length }, (_, i) => normalizeText(rows[headerIdx][i]))
+    const timeCols = findTimeHeaderColumns(headers)
 
-    if (timeCol === -1 || accelCol === -1) continue
+    for (const timeCol of timeCols) {
+      const accelCol = findAccelHeaderColumn(headers, timeCol)
+      if (accelCol === -1) continue
 
-    const values: Array<{ time: number; accel: number }> = []
-    for (let i = headerIdx + 1; i < rows.length; i++) {
-      const row = rows[i]
-      if (row.length <= Math.max(timeCol, accelCol)) continue
+      const values: Array<{ time: number; accel: number }> = []
+      for (let i = headerIdx + 1; i < rows.length; i++) {
+        const row = rows[i]
+        if (row.length <= Math.max(timeCol, accelCol)) continue
 
-      const time = parseNumber(row[timeCol])
-      const accel = parseNumber(row[accelCol])
-      if (!Number.isFinite(time) || !Number.isFinite(accel)) continue
+        const time = parseNumber(row[timeCol])
+        const accel = parseNumber(row[accelCol])
+        if (!Number.isFinite(time) || !Number.isFinite(accel)) continue
 
-      values.push({ time, accel })
+        values.push({ time, accel })
+      }
+
+      if (values.length > 0) return toRawSamples(values)
     }
-
-    if (values.length > 0) return toRawSamples(values)
   }
 
   return null
@@ -264,7 +277,7 @@ function parseTextData(text: string): Array<RawSample> {
 }
 
 function parseWorkbookRows(rows: Array<Array<unknown>>): Array<RawSample> | null {
-  const structured = parseDelimitedRows(rows.map((row) => row.map((cell) => String(cell ?? ''))))
+  const structured = parseDelimitedRows(rows.map(toDenseStringRow))
   if (structured) return structured
 
   return parseRowsHeuristically(rows)
