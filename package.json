@@ -1,6 +1,7 @@
 {
   "name": "harnessvis",
   "private": true,
+  "type": "module",
   "scripts": {
     "biome-debug": "biome check --write --unsafe --verbose .",
     "eslint-list": "eslint --debug 2>&1 | grep /repo | sed 's|.*/repo||' | sort -u",
