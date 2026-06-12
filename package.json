@@ -9,7 +9,7 @@
     "eslint-fix": "eslint --report-unused-disable-directives --max-warnings 0 --fix"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.3.7",
+    "@biomejs/biome": "^2.5.0",
     "@eslint/compat": "^2.0.0",
     "@eslint/js": "^9.39.1",
     "@types/node": "^24.10.1",
