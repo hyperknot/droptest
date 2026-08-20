@@ -10,8 +10,7 @@
     "typecheck:node": "cd ..; pnpm tsc -p tsconfig.node.json --composite false",
     "typecheck:web": "cd ..; pnpm tsc -p tsconfig.app.json --composite false",
     "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
-    "preview_w": "pnpm build && wrangler dev",
-    "deploy_w": "pnpm build && wrangler deploy"
+    "preview_w": "pnpm build && wrangler dev"
   },
   "dependencies": {
     "@kobalte/core": "^0.13.11",
