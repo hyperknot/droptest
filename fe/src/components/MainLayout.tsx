@@ -4,8 +4,6 @@ import { AccelerationProfileChart } from './AccelerationProfileChart'
 
 // Chart colors (must match AccelerationProfileChart.tsx)
 const COLOR_RAW = '#16a34a' // Green
-const COLOR_ACCEL_FILTERED = '#2563eb' // Blue
-const COLOR_JERK = '#a855f7' // Purple
 const COLOR_VELOCITY = '#059669' // Emerald
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -21,6 +19,18 @@ const SectionHeader = (props: { title: string; color?: string; inline?: boolean 
     )}
     {props.title}
   </h2>
+)
+
+const CollapsibleSection = (props: ParentProps<{ title: string }>) => (
+  <details class="group">
+    <summary class="px-4 py-3 flex items-center gap-2 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+      <span class="text-lg font-semibold">{props.title}</span>
+      <span class="text-xs transition-transform group-open:rotate-90" aria-hidden="true">
+        ▶
+      </span>
+    </summary>
+    <div class="px-4 pb-3">{props.children}</div>
+  </details>
 )
 
 const AlgorithmInfo = (props: { lines: Array<string | JSX.Element> }) => (
@@ -205,8 +215,7 @@ const RawAccelSection = () => (
 )
 
 const FilteredAccelSection = () => (
-  <Section>
-    <SectionHeader title="Filtered Acceleration" color={COLOR_ACCEL_FILTERED} />
+  <CollapsibleSection title="Filtered Acceleration">
     <AlgorithmInfo
       lines={[
         <>
@@ -233,12 +242,11 @@ const FilteredAccelSection = () => (
       onChange={(v) => uiStore.setAccelCfc(v)}
       onCommit={() => uiStore.recompute()}
     />
-  </Section>
+  </CollapsibleSection>
 )
 
 const JerkSection = () => (
-  <Section>
-    <SectionHeader title="Jerk" color={COLOR_JERK} />
+  <CollapsibleSection title="Jerk">
     <AlgorithmInfo
       lines={[
         'Savitzky–Golay derivative',
@@ -274,7 +282,7 @@ const JerkSection = () => (
         </ToggleButton>
       </div>
     </div>
-  </Section>
+  </CollapsibleSection>
 )
 
 const EnergySection = () => {
@@ -352,36 +360,42 @@ const DRISection = () => (
 
 const SICSection = () => (
   <Section>
-    <SectionHeader title="SIC (Spine Injury Criterion)" />
-    <AlgorithmInfo
-      lines={[
-        `SIC = max[(t₂-t₁)·(∫a dt / (t₂-t₁))^${uiStore.state.hicExponent}]`,
-        `window=${uiStore.state.hicWindowMs} ms`,
-      ]}
-    />
-    <div class="space-y-2 text-sm mb-3">
-      <MetricRow label="SIC" value={formatNumber(uiStore.state.peakHIC, 1)} large />
+    <div class="flex items-baseline justify-between">
+      <SectionHeader title="SIC" inline />
+      <span class="text-xl font-mono font-bold text-neutral-900">
+        {formatNumber(uiStore.state.peakHIC, 1)}
+      </span>
     </div>
-    <SliderControl
-      label="Window Size"
-      value={uiStore.state.hicWindowMs}
-      min={5}
-      max={100}
-      step={1}
-      unit="ms"
-      onChange={(v) => uiStore.setHicWindowMs(v)}
-      onCommit={() => uiStore.recompute()}
-    />
-    <SliderControl
-      label="Exponent"
-      value={uiStore.state.hicExponent}
-      min={1.0}
-      max={3.5}
-      step={0.1}
-      unit=""
-      onChange={(v) => uiStore.setHicExponent(v)}
-      onCommit={() => uiStore.recompute()}
-    />
+    <details class="group mt-3">
+      <summary class="flex items-center gap-2 text-xs font-medium text-neutral-700 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+        Parameters
+        <span class="transition-transform group-open:rotate-90" aria-hidden="true">
+          ▶
+        </span>
+      </summary>
+      <div class="mt-2">
+        <SliderControl
+          label="Window Size"
+          value={uiStore.state.hicWindowMs}
+          min={5}
+          max={100}
+          step={1}
+          unit="ms"
+          onChange={(v) => uiStore.setHicWindowMs(v)}
+          onCommit={() => uiStore.recompute()}
+        />
+        <SliderControl
+          label="Exponent"
+          value={uiStore.state.hicExponent}
+          min={1.0}
+          max={3.5}
+          step={0.1}
+          unit=""
+          onChange={(v) => uiStore.setHicExponent(v)}
+          onCommit={() => uiStore.recompute()}
+        />
+      </div>
+    </details>
   </Section>
 )
 
@@ -407,7 +421,7 @@ export const MainLayout = () => (
       <SICSection />
       <FilteredAccelSection />
       <JerkSection />
-      <DRISection />
+      {/* <DRISection /> */}
     </aside>
   </div>
 )
