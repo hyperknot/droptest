@@ -22,7 +22,24 @@ export const LandingPage = () => {
             >
               Open source
             </a>{' '}
-            project by Zsolt Ero.
+            project by{' '}
+            <a
+              href="https://hyperknot.com/hyperpilot/"
+              target="_blank"
+              class="text-blue-600 hover:underline"
+              rel="noopener"
+            >
+              Zsolt Ero
+            </a>
+            . More tools and research:{' '}
+            <a
+              href="https://hyperknot.com/hyperpilot/harness-back-protectors/"
+              target="_blank"
+              class="text-blue-600 hover:underline"
+              rel="noopener"
+            >
+              Harness Back Protectors
+            </a>
           </p>
         </header>
 
